@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>BKE.Licensing.Platform</AssemblyName>
+    <RootNamespace>BKE.Licensing.Platform</RootNamespace>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BKE.Licensing\BKE.Licensing.csproj" />
+  </ItemGroup>
+</Project>

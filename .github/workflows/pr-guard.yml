@@ -1,0 +1,40 @@
+name: BKE Dotnet - Intentional PR & Certification Plan
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+
+      - name: Verify canonical bke.md parity
+        run: |
+          EXPECTED_BLOB="38496917a801a50404a0f9fc5d7ef298dcf445a7"
+          ACTUAL_BLOB=$(git hash-object bke.md)
+          echo "bke.md blob=$ACTUAL_BLOB"
+          if [ "$ACTUAL_BLOB" != "$EXPECTED_BLOB" ]; then
+            echo "Canonical bke.md mismatch: expected $EXPECTED_BLOB got $ACTUAL_BLOB"
+            exit 1
+          fi
+
+      - name: Verify BKE CERTIFICATION PLAN in PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node -e '
+            const body = process.env.PR_BODY || "";
+            for (const marker of ["BKE CERTIFICATION PLAN", "REQUIRED", "NOT_APPLICABLE", ".github/workflows/dotnet-licensing-certify.yml"]) {
+              if (!body.includes(marker)) {
+                console.error("Missing required PR plan marker:", marker);
+                process.exit(1);
+              }
+            }
+            console.log("PR Certification Plan verified.");
+          '

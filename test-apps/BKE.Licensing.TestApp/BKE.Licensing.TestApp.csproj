@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BKE.Licensing\BKE.Licensing.csproj" />
+    <ProjectReference Include="..\..\src\BKE.Licensing.Platform\BKE.Licensing.Platform.csproj" />
+  </ItemGroup>
+</Project>

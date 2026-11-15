@@ -1,0 +1,60 @@
+name: BKE Dotnet - Licensing & Security Certification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  TS_CERTIFIED_SHA: "0a6d0151e93acdfb5bd4435b64a7dbf53d010375"
+
+jobs:
+  certify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout bke-dotnet-libraries
+        uses: actions/checkout@v4
+        with:
+          path: dotnet-libs
+
+      - name: Checkout certified TypeScript contracts
+        uses: actions/checkout@v4
+        with:
+          repository: jan2xo/bke-libraries-typescript
+          ref: ${{ env.TS_CERTIFIED_SHA }}
+          path: ts-licensing
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install TypeScript interop runtime
+        working-directory: ts-licensing
+        run: npm ci
+
+      - name: Restore and build .NET solution
+        working-directory: dotnet-libs
+        run: dotnet build BKE.Licensing.sln --configuration Release
+
+      - name: Run .NET unit, adversarial, platform, and cross-language interop tests
+        working-directory: dotnet-libs
+        env:
+          BKE_TS_REPO_PATH: ${{ github.workspace }}/ts-licensing
+        run: dotnet test BKE.Licensing.sln --configuration Release --no-build --verbosity normal
+
+      - name: Run isolated native test application
+        working-directory: dotnet-libs
+        run: dotnet run --project test-apps/BKE.Licensing.TestApp/BKE.Licensing.TestApp.csproj --configuration Release --no-build -- --scenario all

@@ -1,0 +1,417 @@
+{
+  "schema": "bke.licensing-interop-suite.v1",
+  "description": "SYNTHETIC PUBLIC TEST KEYS ONLY. Cross-language certification vectors.",
+  "accountProductLease": {
+    "schema": "bke.lease-vectors.v1",
+    "description": "SYNTHETIC PUBLIC TEST KEY ONLY. NO PRODUCTION KEY.",
+    "libraryContract": "bke.product-lease.v1",
+    "now": "2026-11-11T02:00:00.000Z",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\n-----END PUBLIC KEY-----\n",
+    "activeKid": "test-ed25519-2026",
+    "retiredKid": "test-retired-2025",
+    "expected": {
+      "issuer": "BKE Digital Solutions",
+      "audience": "bke-product",
+      "accountId": "account-test",
+      "userId": "user-test",
+      "productId": "render-dock",
+      "agentSessionId": "agent-session-test",
+      "agentKeyThumbprint": "EZyRf39CtYjY7Eo2vsxSQNMW3JstQqNX2D279miJrAY",
+      "action": "OPEN"
+    },
+    "vectors": [
+      {
+        "name": "valid",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.8HEYQywMrRLzDVHU8iha0E0fggMTufw1nnYDjfTJnoWKpXM3KdIpSmrS3X_JDrJ6M7o13O0HGGDzrb7uA06yCg",
+        "accept": true
+      },
+      {
+        "name": "expired",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTAxVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTAxVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTEwVDAwOjAwOjAwLjAwMFoifQ.7BYyOShk8_kDXJ6Aj7lkDGv0RWWEKB1MnI3AG9YNETWLcetbpnH4WNXHqiMENKDlKLpchzD-5aTo4O31LyXMCQ",
+        "accept": false,
+        "reason": "EXPIRED"
+      },
+      {
+        "name": "wrong-product",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6ImFpci1zdGFjayIsImFnZW50U2Vzc2lvbklkIjoiYWdlbnQtc2Vzc2lvbi10ZXN0IiwiYWdlbnRLZXlUaHVtYnByaW50IjoiRVp5UmYzOUN0WWpZN0VvMnZzeFNRTk1XM0pzdFFxTlgyRDI3OW1pSnJBWSIsImtleVByb3RlY3Rpb24iOiJzb2Z0d2FyZSIsInBsYW4iOiJzdWJzY3JpcHRpb24iLCJhbGxvd2VkQWN0aW9ucyI6WyJPUEVOIl0sImlzc3VlZEF0IjoiMjAyNi0xMS0xMVQwMDowMDowMC4wMDBaIiwicmVmcmVzaEFmdGVyIjoiMjAyNi0xMS0xMVQwMTowMDowMC4wMDBaIiwiZXhwaXJlc0F0IjoiMjAyNi0xMS0xNFQwMDowMDowMC4wMDBaIn0.d5u5Wp3WY7ws1qzRq-hKmRikxna3CKnilKQsTm_tCR-gqTs0QjOzpO8PINMAKuniJW6S6Ij8G3iPCzL0GNb6Cg",
+        "accept": false,
+        "reason": "CLAIM_MISMATCH"
+      },
+      {
+        "name": "wrong-thumbprint",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJOWnR6RFJVbmVYUl9YT0NtOFhMc3pvN251QjR5NlY2bnROOEttQmF0WUVBIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.9V59w9PeZz2VzDiHaen38qdEzEhVL2d3u33xPqRPtqULH4kD5glNAtbRPUnLPhBcueT0f5-Fb2mhSZXhSX0jAg",
+        "accept": false,
+        "reason": "CLAIM_MISMATCH"
+      },
+      {
+        "name": "unknown-kid",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InVua25vd24tMjAyNiIsInR5cCI6ImJrZS5wcm9kdWN0LWxlYXNlLnYxK2p3cyJ9.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.dk6-iaOZPOnIJsP4gGn-93GCy2w-FmSQB4FdkWDD8U001oAP_gsrgwrvLfBSCwL9KkysW6XXp39MCE5ogBPiAw",
+        "accept": false,
+        "reason": "UNTRUSTED_KID"
+      },
+      {
+        "name": "retired-kid",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtcmV0aXJlZC0yMDI1IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.Gpq2rNbmdfUqCeLaHk7OblbLhnLklrhtvXKfFbXEVp2hTv54R6AVj2PitH8xiStcCkpNcKwg4Wo9X61ow77ZDA",
+        "accept": false,
+        "reason": "UNTRUSTED_KID"
+      },
+      {
+        "name": "tampered-byte",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.8HEYQywMrRLzDVHU8iha0E0fggMTufw1nnYDjfTJnoWKpXM3KdIpSmrS3X_JDrJ6M7o13O0HGGDzrb7uA06yCA",
+        "accept": false,
+        "reason": "INVALID_SIGNATURE"
+      },
+      {
+        "name": "future-issued",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTEyVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTEyVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE1VDAwOjAwOjAwLjAwMFoifQ.kRDq3xsS96DTJgA4Jhf-gArxi97DbiOCGEwEpkcofOCNkRdFyh92rOTx70-skAM1JXudlWEz3aPJjwfvFvdiAw",
+        "accept": false,
+        "reason": "FUTURE_ISSUED_AT"
+      },
+      {
+        "name": "wrong-alg-header",
+        "jws": "eyJhbGciOiJIUzI1NiIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.8HEYQywMrRLzDVHU8iha0E0fggMTufw1nnYDjfTJnoWKpXM3KdIpSmrS3X_JDrJ6M7o13O0HGGDzrb7uA06yCg",
+        "accept": false,
+        "reason": "MALFORMED_JWS"
+      },
+      {
+        "name": "duplicate-header",
+        "jws": "eyJhbGciOiJIUzI1NiIsImFsZyI6IkVkRFNBIiwia2lkIjoidGVzdC1lZDI1NTE5LTIwMjYiLCJ0eXAiOiJia2UucHJvZHVjdC1sZWFzZS52MStqd3MifQ.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.nwfH54eigC_AUcdrdy3qEhMEvA2FoTvRWVUs-2DGp-WFKh0jTJUkkoi_T7X-BB3zby5tgOgk1OPraiwQPLrqDg",
+        "accept": false,
+        "reason": "MALFORMED_JWS"
+      },
+      {
+        "name": "duplicate-payload",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RcdTAwNDlkIjoiYWlyLXN0YWNrIiwicHJvZHVjdElkIjoicmVuZGVyLWRvY2siLCJhZ2VudFNlc3Npb25JZCI6ImFnZW50LXNlc3Npb24tdGVzdCIsImFnZW50S2V5VGh1bWJwcmludCI6IkVaeVJmMzlDdFlqWTdFbzJ2c3hTUU5NVzNKc3RRcU5YMkQyNzltaUpyQVkiLCJrZXlQcm90ZWN0aW9uIjoic29mdHdhcmUiLCJwbGFuIjoic3Vic2NyaXB0aW9uIiwiYWxsb3dlZEFjdGlvbnMiOlsiT1BFTiJdLCJpc3N1ZWRBdCI6IjIwMjYtMTEtMTFUMDA6MDA6MDAuMDAwWiIsInJlZnJlc2hBZnRlciI6IjIwMjYtMTEtMTFUMDE6MDA6MDAuMDAwWiIsImV4cGlyZXNBdCI6IjIwMjYtMTEtMTRUMDA6MDA6MDAuMDAwWiJ9.c6JqVOm7QcVz7e1PKJU3HJ_fe8VU9hk4pzwkZXbg3IvSeIDA29z3spJ2erMHhbkKE4ItL0JtEy0PCSHp2UTPDw",
+        "accept": false,
+        "reason": "INVALID_CLAIMS"
+      },
+      {
+        "name": "invalid-utf8-payload",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoi_2VjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.BspWOt0Po6hBY96_7Axe2mKbzDM6eoveX5NMQszt2g7n27VAKKFBsSAqfN52qcvreIH29FVN36pPHjmdZIOAAA",
+        "accept": false,
+        "reason": "INVALID_CLAIMS"
+      },
+      {
+        "name": "bom-header",
+        "jws": "77u_eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.aYBh7uzua_yxTUV7UKP5C4DOk2Oa5PB3DL1C2lP-Fs78WmTtjd_fPLD-EPqH69uXpG7mjsHTD3OC6Fsc4n7NDw",
+        "accept": false,
+        "reason": "MALFORMED_JWS"
+      },
+      {
+        "name": "bom-payload",
+        "jws": "eyJhbGciOiJFZERTQSIsImtpZCI6InRlc3QtZWQyNTUxOS0yMDI2IiwidHlwIjoiYmtlLnByb2R1Y3QtbGVhc2UudjErandzIn0.77u_eyJzY2hlbWEiOiJia2UucHJvZHVjdC1sZWFzZS52MSIsImlzc3VlciI6IkJLRSBEaWdpdGFsIFNvbHV0aW9ucyIsImF1ZGllbmNlIjoiYmtlLXByb2R1Y3QiLCJsZWFzZUlkIjoidmVjdG9yLWxlYXNlLTAwMSIsImFjY291bnRJZCI6ImFjY291bnQtdGVzdCIsInVzZXJJZCI6InVzZXItdGVzdCIsInByb2R1Y3RJZCI6InJlbmRlci1kb2NrIiwiYWdlbnRTZXNzaW9uSWQiOiJhZ2VudC1zZXNzaW9uLXRlc3QiLCJhZ2VudEtleVRodW1icHJpbnQiOiJFWnlSZjM5Q3RZalk3RW8ydnN4U1FOTVczSnN0UXFOWDJEMjc5bWlKckFZIiwia2V5UHJvdGVjdGlvbiI6InNvZnR3YXJlIiwicGxhbiI6InN1YnNjcmlwdGlvbiIsImFsbG93ZWRBY3Rpb25zIjpbIk9QRU4iXSwiaXNzdWVkQXQiOiIyMDI2LTExLTExVDAwOjAwOjAwLjAwMFoiLCJyZWZyZXNoQWZ0ZXIiOiIyMDI2LTExLTExVDAxOjAwOjAwLjAwMFoiLCJleHBpcmVzQXQiOiIyMDI2LTExLTE0VDAwOjAwOjAwLjAwMFoifQ.tcicouFr3hX6CB4Z9kic3GZwWAVztRSxofsNkRxnxnEQoIhw7yiaMQuR8tMrdiWyL80FRLMdM7Vnxlj1zUBsCA",
+        "accept": false,
+        "reason": "INVALID_CLAIMS"
+      }
+    ]
+  },
+  "commercialLease": {
+    "now": "2026-11-11T02:00:00.000Z",
+    "expected": {
+      "issuer": "BKE Digital Solutions",
+      "productId": "render-dock",
+      "installationId": "install-interop-001",
+      "deviceId": "device-interop-0001",
+      "version": "2.4.1"
+    },
+    "keys": [
+      {
+        "keyId": "comm-active-2026",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwFDFY3pE+oYp//PMzOIwDLNipj2Z2V/FQUUmb0MyRFo=\n-----END PUBLIC KEY-----\n",
+        "status": "ACTIVE"
+      },
+      {
+        "keyId": "comm-verify-only-2025",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIBLLkMpg6OXY2vZuInLSIz4EhtVX6MZhQe2JIBd9frc=\n-----END PUBLIC KEY-----\n",
+        "status": "VERIFY_ONLY"
+      },
+      {
+        "keyId": "comm-revoked-2024",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA+AzM3OSuHAeuIIoq35mjEK5CB+Awb6AjYRCwaCe7uNA=\n-----END PUBLIC KEY-----\n",
+        "status": "REVOKED"
+      },
+      {
+        "keyId": "test-ed25519-2026",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\n-----END PUBLIC KEY-----\n",
+        "status": "ACTIVE"
+      }
+    ],
+    "vectors": [
+      {
+        "name": "valid-active",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "H6kH/mxOwBBigInTNotEmqoG795hyuSCXKoQpWR3R4XMRNTdUtKHf0TVCCL8BHTpmtctgHiX2h9WPW4wct6kAw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": true
+      },
+      {
+        "name": "valid-verify-only-rotation",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-verify-only-2025\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "DbhfOekEA1UO+yeZojTkh88wkuyMkg2xDnErSwXy8MbOJIkf/3EogRDWNRIJ4NMatbAYOR0gxvdI0J+khpRpAA==",
+          "key_id": "comm-verify-only-2025",
+          "algorithm": "Ed25519"
+        },
+        "accept": true
+      },
+      {
+        "name": "tampered-payload",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"air-stack\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "H6kH/mxOwBBigInTNotEmqoG795hyuSCXKoQpWR3R4XMRNTdUtKHf0TVCCL8BHTpmtctgHiX2h9WPW4wct6kAw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "INVALID_SIGNATURE"
+      },
+      {
+        "name": "forged-signature",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "veFDL2TVt5vNwfkeTkSha+9KiCEzG9PjpcbO2+o7hG0lrzI3pihmMyx9chfAZZlLWceyaxlGLWk+t3KOhqSVDw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "INVALID_SIGNATURE"
+      },
+      {
+        "name": "non-canonical-base64",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "H6kH/mxOwBBigInTNotEmqoG795hyuSCXKoQpWR3R4XMRNTdUtKHf0TVCCL8BHTpmtctgHiX2h9WPW4wct6kAw",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "MALFORMED_ENVELOPE"
+      },
+      {
+        "name": "unknown-key-id",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-unknown-999\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "68st4CditKq+SHXdTRyuOnG79wGfJgGgfd5i4Z+gQzW7x2jB1wi5AO7eDmUV1V0Fj2CF0flEBI1kwF1VtZdUCA==",
+          "key_id": "comm-unknown-999",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "UNTRUSTED_KEY_ID"
+      },
+      {
+        "name": "revoked-key-id",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-revoked-2024\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "nVsd3+jroOquXKY+FTMIpfHxt68s+GfeaZj8KZnZHpomX3kcAgvYAji2JFvh7wcnZlF1TlR2oV4nd+ilaIefCw==",
+          "key_id": "comm-revoked-2024",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "UNTRUSTED_KEY_ID"
+      },
+      {
+        "name": "duplicate-json-field",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product\\u005fid\":\"air-stack\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "cSR6HABhBBgqJVHzatIGMWKC+s0KEOEo+BemjWv5AN3NL6mY4ZOdYFD5ImteF2Cplts73AkupCKb79EKhNAUBQ==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "INVALID_PAYLOAD"
+      },
+      {
+        "name": "bom-payload",
+        "envelope": {
+          "payload": "﻿{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "I631bMwop24RwnTNGtXHJIzdJG357122A+v6UVETcnSJGtP1k+Iv/5QI7K4gI+Z5njkJg09taWBBlTUWt7eiCA==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "INVALID_PAYLOAD"
+      },
+      {
+        "name": "revoked-lease-flag",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":true,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "SbtKbgG8QbMFWZdwykShm2Y6YaQYgQJ2ZGP01jpjfutuUfX2fg5D7xhIvhlSHAIT36A/AVSTQEqZhf8FsDQvAg==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "LEASE_REVOKED"
+      },
+      {
+        "name": "superseded-lease",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":\"lease-interop-002\",\"version\":\"2.4.1\"}",
+          "signature": "TdvzPB75BUiB/eLsP9LoEuj5+ohJf1G5hLZeXaop01Tj1nFnWF6+wbSrM2hFxiAB09P5f4uQjZY74usaJB9aBA==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "LEASE_SUPERSEDED"
+      },
+      {
+        "name": "wrong-product",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"air-stack\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "iO/iyoCGKkFdsp4C7Y3/Llj4l6aCMLoi5SfKuZ0Zm0ADDv+EAA2AAaiIsTA6kjJqfvKCabkTVvcUcc53xd3vBw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "SCOPE_MISMATCH"
+      },
+      {
+        "name": "wrong-installation",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"other-install\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "92IkzgfcGFzz+adE+mpMcc0JeEpcmdMk19yA8mJAqXlc+enoBX6ycEnliN0e/a8ULTiuZmVYQoUCCfE6bgwdCw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "SCOPE_MISMATCH"
+      },
+      {
+        "name": "wrong-device",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"other-device-0002\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "FU2DjXLYuEr88QwiHaSuX43IZJHHIX0jR+2o8mcRm/3la8H/T5qcn4sZWTynDFog6uic89pKq1g5Mv6LSqQpCg==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "SCOPE_MISMATCH"
+      },
+      {
+        "name": "wrong-version",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"9.9.9\"}",
+          "signature": "P1ln2ePydf6cRJYtKgW4kbv4XiribmXQFWsub01BxrqgjOIEgHYo4EBJk62ugDoALHQWzE3iw+rZ2P5tOa+BBg==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "SCOPE_MISMATCH"
+      },
+      {
+        "name": "expired",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-11-10T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-10-01T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-10-01T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "i9wm/z2QYNtI3i1HMHdT17t9YJ8snbZ9xSxFYQkLV6Z4/Tjd+SHulH2Y0RHmtehECn7S9YB+sCrRDIj4+raTDQ==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "EXPIRED"
+      },
+      {
+        "name": "future-issued-at",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-12T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-12T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-12T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "AyzuVc+dSPpRjNtUuUbmG/jxzuBMlrSr/tcESaOizFlVb9H71JJ3OpNOlaWFefQGPQjxVUmA/mn/uOYpzlKbDQ==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "FUTURE_ISSUED_AT"
+      },
+      {
+        "name": "not-yet-valid",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-12T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"comm-active-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-12T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "sWh7My3+hCzeD17FTbXGI2puE42vH8g/B8CpmdqieFoWs0JzcZ30i6qH/ZJBrMC3JWSjfLHmFVyyOUfHHF+2Dw==",
+          "key_id": "comm-active-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "NOT_YET_VALID"
+      },
+      {
+        "name": "public-test-key-rejected-in-strict-mode",
+        "envelope": {
+          "payload": "{\"algorithm\":\"Ed25519\",\"device_id\":\"device-interop-0001\",\"expires_at\":\"2026-12-11T00:00:00.000Z\",\"generation\":1,\"installation_id\":\"install-interop-001\",\"issued_at\":\"2026-11-11T00:00:00.000Z\",\"issuer\":\"BKE Digital Solutions\",\"key_id\":\"test-ed25519-2026\",\"lease_id\":\"lease-interop-001\",\"license_id\":\"lic-interop-001\",\"not_before\":\"2026-11-11T00:00:00.000Z\",\"product_id\":\"render-dock\",\"revoked\":false,\"server_revision\":1,\"superseded_by\":null,\"version\":\"2.4.1\"}",
+          "signature": "JMLhoFLzlU/4RALEfjSewb3Y5KsPqWJ2CV9XiIgGHV002eyazF0GhGnR4KKNhuD5NxArSFwVZDHyGGSlW+UVAQ==",
+          "key_id": "test-ed25519-2026",
+          "algorithm": "Ed25519"
+        },
+        "accept": false,
+        "reason": "UNTRUSTED_KEY_ID",
+        "disallowPublicTestKeys": true
+      }
+    ]
+  },
+  "challengeProof": {
+    "now": "2026-11-11T02:00:00.000Z",
+    "agentPublicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEArwaj4ykXFOTzVsGcmxXNGVHsbmZiqne+B1R/KJODNB0=\n-----END PUBLIC KEY-----\n",
+    "wrongAgentPublicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEALfBBJfABWvtHzoU674dyCU/5SYwUyxueEpc8KSfaD6Y=\n-----END PUBLIC KEY-----\n",
+    "record": {
+      "challengeId": "challenge-interop-001",
+      "accountId": "account-test",
+      "userId": "user-test",
+      "productId": "render-dock",
+      "agentSessionId": "agent-session-test",
+      "agentKeyThumbprint": "r5BzNgBmJT0dPH9ioULu_yXUu3Bii2BWFF_IeQhKJlU",
+      "action": "OPEN",
+      "nonce": "interop-nonce-0123456789abcdef0123",
+      "createdAt": "2026-11-11T01:59:45.000Z",
+      "expiresAt": "2026-11-11T02:00:15.000Z",
+      "messageHash": "bc875b77967cc17a308f10f9fa8f8a51fd0c1b2dfb1e6b4f5b05d6aa7f046e07"
+    },
+    "validMessageBase64url": "YmtlLmxlYXNlLWNoYWxsZW5nZS52MQpjaGFsbGVuZ2UtaW50ZXJvcC0wMDEKYWNjb3VudC10ZXN0CnVzZXItdGVzdApyZW5kZXItZG9jawphZ2VudC1zZXNzaW9uLXRlc3QKcjVCek5nQm1KVDBkUEg5aW9VTHVfeVhVdTNCaWkyQldGRl9JZVFoS0psVQpPUEVOCmludGVyb3Atbm9uY2UtMDEyMzQ1Njc4OWFiY2RlZjAxMjM",
+    "validSignatureBase64url": "do-ZlDkJloYzW3IZgwX8pixmp9YRfZwukWwo10icDWDX0c7yj4oKjmMo5gA6UtBtUHxlSN0BeOfvqTCx9WG8Cw",
+    "forgedSignatureBase64url": "cs7i48HgCVtMyxoqB1J-eZ5hlMFVZh_5xkRt5EleIOGDXgi9CQgidgATjvtTODFiWebfHb2bRulC2kisNDBYBQ"
+  },
+  "activationModes": [
+    {
+      "mode": "ACCOUNT",
+      "credential": "ACCOUNT",
+      "ok": true
+    },
+    {
+      "mode": "ACCOUNT",
+      "credential": "LICENSE_KEY",
+      "ok": false,
+      "reason": "ACTIVATION_MODE_MISMATCH"
+    },
+    {
+      "mode": "LICENSE_KEY",
+      "credential": "LICENSE_KEY",
+      "ok": true
+    },
+    {
+      "mode": "LICENSE_KEY",
+      "credential": "ACCOUNT",
+      "ok": false,
+      "reason": "ACTIVATION_MODE_MISMATCH"
+    },
+    {
+      "mode": "EITHER",
+      "credential": "ACCOUNT",
+      "ok": true
+    },
+    {
+      "mode": "EITHER",
+      "credential": "LICENSE_KEY",
+      "ok": true
+    },
+    {
+      "mode": "EITHER",
+      "credential": "CLAIM_CODE",
+      "ok": false,
+      "reason": "CLAIM_CODE_NOT_ACTIVATION_CREDENTIAL"
+    },
+    {
+      "mode": "UNKNOWN",
+      "credential": "ACCOUNT",
+      "ok": false,
+      "reason": "INVALID_ACTIVATION_MODE"
+    }
+  ]
+}
