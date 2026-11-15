@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +10,14 @@ namespace BKE.Licensing.Platform.MacOS;
 [SupportedOSPlatform("macos")]
 public sealed partial class MacOsKeychainSecretStore : ISecureSecretStore
 {
+    private const string SecurityFramework = "/System/Library/Frameworks/Security.framework/Security";
+    private const string CoreFoundationFramework = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+    private const int ErrSecSuccess = 0;
+    private const int ErrSecDuplicateItem = -25299;
+    private const int ErrSecItemNotFound = -25300;
+
     private const string KeychainMasterAccount = "bke.licensing.wrapping-key.v1";
+    private const int MasterKeySizeBytes = 32;
     private const int MagicLength = 6;
     private const int NonceLength = 12;
     private const int TagLength = 16;
@@ -148,18 +155,47 @@ public sealed partial class MacOsKeychainSecretStore : ISecureSecretStore
             throw new PlatformNotSupportedException("MacOsKeychainSecretStore requires macOS Keychain Services.");
         }
 
-        var args = new List<string>
-        {
-            "delete-generic-password",
-            "-s", _serviceName,
-            "-a", KeychainMasterAccount,
-        };
-        if (_keychainPath is not null)
-        {
-            args.Add(_keychainPath);
-        }
+        var serviceBytes = Encoding.UTF8.GetBytes(_serviceName);
+        var accountBytes = Encoding.UTF8.GetBytes(KeychainMasterAccount);
 
-        RunSecurityCli(args, allowNotFound: true);
+        var keychainRef = OpenKeychainOrDefault();
+        var itemRef = IntPtr.Zero;
+        var passwordData = IntPtr.Zero;
+        uint passwordLength = 0;
+        try
+        {
+            var findStatus = SecKeychainFindGenericPassword(
+                keychainRef,
+                (uint)serviceBytes.Length,
+                serviceBytes,
+                (uint)accountBytes.Length,
+                accountBytes,
+                out passwordLength,
+                out passwordData,
+                out itemRef);
+
+            if (findStatus == ErrSecItemNotFound)
+            {
+                return;
+            }
+
+            if (findStatus != ErrSecSuccess)
+            {
+                throw new SecureSecretStorageException($"macOS Keychain delete lookup failed with OSStatus {findStatus}.");
+            }
+
+            var deleteStatus = SecKeychainItemDelete(itemRef);
+            if (deleteStatus != ErrSecSuccess && deleteStatus != ErrSecItemNotFound)
+            {
+                throw new SecureSecretStorageException($"macOS Keychain wrapping-key delete failed with OSStatus {deleteStatus}.");
+            }
+        }
+        finally
+        {
+            ZeroAndFreeKeychainBuffer(passwordData, passwordLength);
+            ReleaseCf(itemRef);
+            ReleaseCf(keychainRef);
+        }
     }
 
     private byte[] GetOrCreateMasterKey()
@@ -170,96 +206,227 @@ public sealed partial class MacOsKeychainSecretStore : ISecureSecretStore
             return existing;
         }
 
-        var generated = RandomNumberGenerator.GetBytes(32);
-        var hex = Convert.ToHexStringLower(generated);
-        var args = new List<string>
-        {
-            "add-generic-password",
-            "-U",
-            "-s", _serviceName,
-            "-a", KeychainMasterAccount,
-            "-w", hex,
-        };
-        if (_keychainPath is not null)
-        {
-            args.Add(_keychainPath);
-        }
+        var generated = RandomNumberGenerator.GetBytes(MasterKeySizeBytes);
+        var serviceBytes = Encoding.UTF8.GetBytes(_serviceName);
+        var accountBytes = Encoding.UTF8.GetBytes(KeychainMasterAccount);
 
-        RunSecurityCli(args, allowNotFound: false);
-        return generated;
+        var keychainRef = IntPtr.Zero;
+        var addedItemRef = IntPtr.Zero;
+        var keyTransferred = false;
+
+        try
+        {
+            keychainRef = OpenKeychainOrDefault();
+            var addStatus = SecKeychainAddGenericPassword(
+                keychainRef,
+                (uint)serviceBytes.Length,
+                serviceBytes,
+                (uint)accountBytes.Length,
+                accountBytes,
+                (uint)generated.Length,
+                generated,
+                out addedItemRef);
+
+            if (addStatus == ErrSecDuplicateItem)
+            {
+                return TryReadMasterKey()
+                    ?? throw new SecureSecretStorageException("macOS Keychain wrapping key was unavailable after duplicate-item response.");
+            }
+
+            if (addStatus != ErrSecSuccess)
+            {
+                throw new SecureSecretStorageException($"macOS Keychain wrapping-key store failed with OSStatus {addStatus}.");
+            }
+
+            keyTransferred = true;
+            return generated;
+        }
+        finally
+        {
+            if (!keyTransferred)
+            {
+                CryptographicOperations.ZeroMemory(generated);
+            }
+
+            ReleaseCf(addedItemRef);
+            ReleaseCf(keychainRef);
+        }
     }
 
     private byte[]? TryReadMasterKey()
     {
-        var args = new List<string>
-        {
-            "find-generic-password",
-            "-s", _serviceName,
-            "-a", KeychainMasterAccount,
-            "-w",
-        };
-        if (_keychainPath is not null)
-        {
-            args.Add(_keychainPath);
-        }
+        var serviceBytes = Encoding.UTF8.GetBytes(_serviceName);
+        var accountBytes = Encoding.UTF8.GetBytes(KeychainMasterAccount);
 
-        var (exitCode, stdout, _) = RunSecurityCli(args, allowNotFound: true);
-        if (exitCode == 44)
-        {
-            return null;
-        }
-        if (exitCode != 0)
-        {
-            throw new SecureSecretStorageException($"macOS Keychain lookup failed with exit code {exitCode}.");
-        }
+        var keychainRef = OpenKeychainOrDefault();
+        var itemRef = IntPtr.Zero;
+        var passwordData = IntPtr.Zero;
+        uint passwordLength = 0;
 
-        var trimmed = stdout.Trim();
         try
         {
-            var key = Convert.FromHexString(trimmed);
-            if (key.Length != 32)
+            var status = SecKeychainFindGenericPassword(
+                keychainRef,
+                (uint)serviceBytes.Length,
+                serviceBytes,
+                (uint)accountBytes.Length,
+                accountBytes,
+                out passwordLength,
+                out passwordData,
+                out itemRef);
+
+            if (status == ErrSecItemNotFound)
             {
-                CryptographicOperations.ZeroMemory(key);
+                return null;
+            }
+
+            if (status != ErrSecSuccess)
+            {
+                throw new SecureSecretStorageException($"macOS Keychain lookup failed with OSStatus {status}.");
+            }
+
+            if (passwordData == IntPtr.Zero ||
+                (passwordLength != MasterKeySizeBytes && passwordLength != MasterKeySizeBytes * 2))
+            {
                 throw new SecureSecretStorageException("macOS Keychain wrapping key has invalid length.");
             }
-            return key;
+
+            var rawBytes = new byte[passwordLength];
+            try
+            {
+                Marshal.Copy(passwordData, rawBytes, 0, rawBytes.Length);
+                if (rawBytes.Length == MasterKeySizeBytes)
+                {
+                    var key = new byte[MasterKeySizeBytes];
+                    rawBytes.CopyTo(key, 0);
+                    return key;
+                }
+
+                // Preserve read compatibility for existing 64-byte ASCII hex entries created by prior releases
+                // without allocating a managed string.
+                return DecodeAsciiHexKey(rawBytes);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(rawBytes);
+            }
         }
-        catch (FormatException ex)
+        finally
         {
-            throw new SecureSecretStorageException("macOS Keychain wrapping key format is invalid.", ex);
+            ZeroAndFreeKeychainBuffer(passwordData, passwordLength);
+            ReleaseCf(itemRef);
+            ReleaseCf(keychainRef);
         }
     }
 
-    private static (int ExitCode, string Stdout, string Stderr) RunSecurityCli(
-        IReadOnlyList<string> args,
-        bool allowNotFound)
+    private static byte[] DecodeAsciiHexKey(ReadOnlySpan<byte> hexBytes)
     {
-        var psi = new ProcessStartInfo("/usr/bin/security")
+        var decoded = new byte[MasterKeySizeBytes];
+        for (var i = 0; i < MasterKeySizeBytes; i++)
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var arg in args)
-        {
-            psi.ArgumentList.Add(arg);
+            var hi = ParseHexNibble(hexBytes[i * 2]);
+            var lo = ParseHexNibble(hexBytes[(i * 2) + 1]);
+            if (hi < 0 || lo < 0)
+            {
+                CryptographicOperations.ZeroMemory(decoded);
+                throw new SecureSecretStorageException("macOS Keychain wrapping key format is invalid.");
+            }
+
+            decoded[i] = (byte)((hi << 4) | lo);
         }
 
-        using var process = Process.Start(psi)
-            ?? throw new SecureSecretStorageException("Unable to invoke /usr/bin/security.");
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-
-        if (process.ExitCode != 0 && !(allowNotFound && process.ExitCode == 44))
-        {
-            throw new SecureSecretStorageException(
-                $"macOS /usr/bin/security exited with code {process.ExitCode}: {stderr.Trim()}");
-        }
-
-        return (process.ExitCode, stdout, stderr);
+        return decoded;
     }
+
+    private static int ParseHexNibble(byte ascii) => ascii switch
+    {
+        >= (byte)'0' and <= (byte)'9' => ascii - '0',
+        >= (byte)'a' and <= (byte)'f' => ascii - 'a' + 10,
+        >= (byte)'A' and <= (byte)'F' => ascii - 'A' + 10,
+        _ => -1,
+    };
+
+    private IntPtr OpenKeychainOrDefault()
+    {
+        if (_keychainPath is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        var status = SecKeychainOpen(_keychainPath, out var keychainRef);
+        if (status != ErrSecSuccess || keychainRef == IntPtr.Zero)
+        {
+            ReleaseCf(keychainRef);
+            throw new SecureSecretStorageException($"macOS Keychain open failed with OSStatus {status}.");
+        }
+
+        return keychainRef;
+    }
+
+    private static void ZeroAndFreeKeychainBuffer(IntPtr data, uint length)
+    {
+        if (data == IntPtr.Zero)
+        {
+            return;
+        }
+
+        for (var i = 0; i < (int)length; i++)
+        {
+            Marshal.WriteByte(data, i, 0);
+        }
+
+        _ = SecKeychainItemFreeContent(IntPtr.Zero, data);
+    }
+
+    private static void ReleaseCf(IntPtr cf)
+    {
+        if (cf != IntPtr.Zero)
+        {
+            CFRelease(cf);
+        }
+    }
+
+    [DllImport(SecurityFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int SecKeychainOpen(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string pathName,
+        out IntPtr keychain);
+
+    [DllImport(SecurityFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int SecKeychainAddGenericPassword(
+        IntPtr keychain,
+        uint serviceNameLength,
+        byte[] serviceName,
+        uint accountNameLength,
+        byte[] accountName,
+        uint passwordLength,
+        byte[] passwordData,
+        out IntPtr itemRef);
+
+    [DllImport(SecurityFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int SecKeychainFindGenericPassword(
+        IntPtr keychainOrArray,
+        uint serviceNameLength,
+        byte[] serviceName,
+        uint accountNameLength,
+        byte[] accountName,
+        out uint passwordLength,
+        out IntPtr passwordData,
+        out IntPtr itemRef);
+
+    [DllImport(SecurityFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int SecKeychainItemDelete(IntPtr itemRef);
+
+    [DllImport(SecurityFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int SecKeychainItemFreeContent(IntPtr attrList, IntPtr data);
+
+    [DllImport(CoreFoundationFramework, ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern void CFRelease(IntPtr cf);
 
     private string ResolveSafePath(string name)
     {
