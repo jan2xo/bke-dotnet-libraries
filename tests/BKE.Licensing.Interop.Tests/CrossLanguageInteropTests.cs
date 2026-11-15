@@ -260,6 +260,179 @@ console.log(JSON.stringify({
         Assert.Equal(LeaseChallengeFailureReasons.ChallengeAlreadyConsumed, popReplay.Reason);
     }
 
+    [Fact]
+    public void CloudflareWorkerFixture_EmitsRealSignedBytes_VerifiedInDotNet()
+    {
+        var tsRepoPath = ResolveTypeScriptRepoPath();
+        if (tsRepoPath is null)
+        {
+            Assert.True(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")), "CI must supply BKE_TS_REPO_PATH");
+            return;
+        }
+
+        var workerFixtureDir = Path.Combine(tsRepoPath, "fixtures", "cloudflare-licensing-worker");
+        Assert.True(Directory.Exists(workerFixtureDir), $"Missing Cloudflare worker fixture at {workerFixtureDir}");
+
+        const string inlineHarnessScript = """
+import { createTestHarness } from 'wrangler';
+
+const configPath = './wrangler.jsonc';
+const harness = createTestHarness({
+  workers: [{ configPath }],
+});
+
+await harness.listen();
+try {
+  const healthRes = await harness.fetch('http://localhost/health');
+  const health = await healthRes.json();
+
+  const keysRes = await harness.fetch('http://localhost/api/test/public-keys');
+  const keys = await keysRes.json();
+
+  const acctRes = await harness.fetch('http://localhost/api/test/issue-account-lease', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      productId: 'render-dock',
+      accountId: 'acct_cf_test_001',
+      userId: 'usr_cf_test_001',
+      allowedActions: ['OPEN', 'USE'],
+      ttlMinutes: 20,
+    }),
+  });
+  const acct = await acctRes.json();
+
+  const commRes = await harness.fetch('http://localhost/api/test/issue-commercial-lease', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      productId: 'render-dock',
+      installationId: '00000000-0000-0000-0000-000000000123',
+      deviceId: 'dev_cf_machine_0001',
+      version: '1.0.3',
+      ttlMinutes: 60,
+    }),
+  });
+  const comm = await commRes.json();
+
+  const startupRes = await harness.fetch('http://localhost/api/agent-sessions/startup-policy', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-bke-startup-policy-protocol': 'bke.installed-startup-issuance.v1',
+    },
+    body: JSON.stringify({
+      signed_install_attestation: 'test_install_attestation_bytes_sample',
+      productId: 'render-dock',
+      version: '1.0.3',
+      activationMode: 'EITHER',
+    }),
+  });
+  const startup = await startupRes.json();
+
+  console.log(JSON.stringify({
+    health,
+    keys,
+    acct,
+    comm,
+    startup,
+  }));
+} finally {
+  await harness.close();
+}
+""";
+
+        var liveOutput = RunInlineNodeModule(workerFixtureDir, inlineHarnessScript);
+        using var doc = JsonDocument.Parse(liveOutput);
+        var root = doc.RootElement;
+
+        // 1. Verify health & runtime identity
+        var health = root.GetProperty("health");
+        Assert.Equal("ok", health.GetProperty("status").GetString());
+        Assert.Equal("cloudflare-worker-workerd", health.GetProperty("runtime").GetString());
+
+        // 2. Extract public key
+        var keysArray = root.GetProperty("keys").GetProperty("keys");
+        var activeKey = keysArray[0];
+        var kid = activeKey.GetProperty("kid").GetString()!;
+        var pubPem = activeKey.GetProperty("publicKeyPem").GetString()!;
+
+        // 3. Cryptographically verify the real Account Lease JWS in .NET
+        var acctElem = root.GetProperty("acct");
+        var jws = acctElem.GetProperty("jws").GetString()!;
+        var claimsElem = acctElem.GetProperty("claims");
+        var issuedAt = DateTimeOffset.Parse(claimsElem.GetProperty("issuedAt").GetString()!);
+
+        var acctKeys = new Dictionary<string, AccountProductLeaseTrustedKey>
+        {
+            [kid] = new(pubPem, AccountProductLeaseKeyStates.Active),
+        };
+        var acctExpected = new AccountProductLeaseVerificationContext(
+            claimsElem.GetProperty("issuer").GetString()!,
+            claimsElem.GetProperty("audience").GetString()!,
+            claimsElem.GetProperty("accountId").GetString()!,
+            claimsElem.GetProperty("userId").GetString()!,
+            claimsElem.GetProperty("productId").GetString()!,
+            claimsElem.GetProperty("agentSessionId").GetString()!,
+            claimsElem.GetProperty("agentKeyThumbprint").GetString()!,
+            "OPEN",
+            issuedAt.AddMinutes(1),
+            DisallowPublicTestKeys: true);
+
+        var acctVerification = AccountProductLeaseVerifier.Verify(jws, acctKeys, acctExpected);
+        Assert.True(acctVerification.Ok, $"Account lease JWS from Worker failed: {acctVerification.Reason}");
+        Assert.NotNull(acctVerification.Claims);
+        Assert.Equal("render-dock", acctVerification.Claims.ProductId);
+
+        // Negative: tampered JWS rejected by .NET
+        var jwsParts = jws.Split('.');
+        var tamperedJws = $"{jwsParts[0]}.{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"tampered\":true}"))}.{jwsParts[2]}";
+        var tamperedAcct = AccountProductLeaseVerifier.Verify(tamperedJws, acctKeys, acctExpected);
+        Assert.False(tamperedAcct.Ok);
+
+        // 4. Cryptographically verify the real Commercial Lease Envelope in .NET
+        var commElem = root.GetProperty("comm");
+        var envElem = commElem.GetProperty("envelope");
+        var commercialEnvelope = new CommercialLeaseEnvelope(
+            envElem.GetProperty("payload").GetString()!,
+            envElem.GetProperty("signature").GetString()!,
+            envElem.GetProperty("key_id").GetString()!,
+            envElem.GetProperty("algorithm").GetString()!);
+
+        var commKeys = new Dictionary<string, CommercialLeaseTrustedKey>
+        {
+            [kid] = new(pubPem, CommercialLeaseKeyStatuses.Active),
+        };
+        var commExpected = new CommercialLeaseVerificationContext(
+            "BKE Digital Solutions",
+            "render-dock",
+            "00000000-0000-0000-0000-000000000123",
+            "dev_cf_machine_0001",
+            "1.0.3",
+            issuedAt.AddMinutes(1),
+            DisallowPublicTestKeys: true);
+
+        var commVerification = CommercialLeaseVerifier.Verify(commercialEnvelope, commKeys, commExpected);
+        Assert.True(commVerification.Ok, $"Commercial lease from Worker failed: {commVerification.Reason}");
+        Assert.NotNull(commVerification.Payload);
+        Assert.Equal("render-dock", commVerification.Payload.ProductId);
+
+        // Negative: tampered commercial payload rejected by .NET
+        var tamperedPayload = commercialEnvelope.Payload.Replace("render-dock", "tampered-dock");
+        var tamperedComm = CommercialLeaseVerifier.Verify(commercialEnvelope with { Payload = tamperedPayload }, commKeys, commExpected);
+        Assert.False(tamperedComm.Ok);
+        Assert.Equal(CommercialLeaseFailureReasons.InvalidSignature, tamperedComm.Reason);
+
+        // 5. Verify the startup policy response protocol from Worker
+        var startupElem = root.GetProperty("startup");
+        Assert.Equal("issued", startupElem.GetProperty("status").GetString());
+        Assert.Equal("EITHER", startupElem.GetProperty("activation_mode").GetString());
+        var signedEnv = startupElem.GetProperty("signed_policy_envelope").GetString()!;
+        using var envDoc = JsonDocument.Parse(signedEnv);
+        Assert.Equal("bke.standalone-startup-envelope.v1", envDoc.RootElement.GetProperty("schema").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(envDoc.RootElement.GetProperty("signature").GetString()));
+    }
+
     private static void AssertSuite(JsonElement root)
     {
         // 1. Account-product lease vectors (14 cases)
@@ -466,6 +639,39 @@ console.log(JSON.stringify({
             var stderr = p.StandardError.ReadToEnd();
             p.WaitForExit();
             Assert.True(p.ExitCode == 0, $"tsx failed ({p.ExitCode}): {stderr}");
+            return stdout;
+        }
+        finally
+        {
+            if (File.Exists(tmpFile))
+            {
+                File.Delete(tmpFile);
+            }
+        }
+    }
+
+    private static string RunInlineNodeModule(string workDir, string moduleSource)
+    {
+        var tmpFile = Path.Combine(workDir, $"bke-worker-test-{Guid.NewGuid():N}.mjs");
+        File.WriteAllText(tmpFile, moduleSource, System.Text.Encoding.UTF8);
+        try
+        {
+            var psi = new ProcessStartInfo("node")
+            {
+                WorkingDirectory = workDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add(tmpFile);
+            using var p = Process.Start(psi)!;
+            var stdout = p.StandardOutput.ReadToEnd();
+            var stderr = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            Assert.True(p.ExitCode == 0, $"node failed ({p.ExitCode}): {stderr}");
             return stdout;
         }
         finally

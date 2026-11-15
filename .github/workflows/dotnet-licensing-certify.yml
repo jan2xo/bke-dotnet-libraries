@@ -9,7 +9,7 @@ permissions:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
-  TS_CERTIFIED_SHA: "0a6d0151e93acdfb5bd4435b64a7dbf53d010375"
+  TS_CERTIFIED_SHA: "66c01e5110ebf86c573c5ce13611a8379d28b326"
 
 jobs:
   certify:
@@ -43,7 +43,9 @@ jobs:
 
       - name: Install TypeScript interop runtime
         working-directory: ts-licensing
-        run: npm ci
+        run: |
+          npm ci
+          npm install --prefix fixtures/cloudflare-licensing-worker
 
       - name: Restore and build .NET solution
         working-directory: dotnet-libs

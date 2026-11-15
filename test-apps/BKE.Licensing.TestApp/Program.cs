@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using BKE.Licensing;
+using BKE.Licensing.Client;
 using BKE.Licensing.Contracts;
 using BKE.Licensing.Platform;
 using BKE.Licensing.Policy;
@@ -25,7 +27,7 @@ internal static class Program
         }
 
         RunAllScenarios();
-        Console.WriteLine("DOTNET_ISOLATED_TEST_APP: ALL_11_SCENARIOS_VERIFIED");
+        Console.WriteLine("DOTNET_ISOLATED_TEST_APP: ALL_14_SCENARIOS_VERIFIED");
         return 0;
     }
 
@@ -233,6 +235,106 @@ internal static class Program
 
         // 11. Platform secure secret storage round-trip + tamper detection
         VerifyPlatformSecretStorage();
+
+        // 12. SDK client StartAsync fails closed when Agent unavailable / offline
+        var s12 = BkeLicensing.StartAsync(new ProductStartupOptions
+        {
+            PipeName = "bke-testapp-offline-" + Guid.NewGuid().ToString("N"),
+            ConnectTimeout = TimeSpan.FromMilliseconds(50),
+            RequestTimeout = TimeSpan.FromMilliseconds(50),
+        }).GetAwaiter().GetResult();
+        Require(!s12.Authorized && s12.Reason == ProductStartupFailureReasons.AgentUnavailable, "Scenario 12 failed");
+
+        // 13. SDK client StartAsync authorizes when Agent authorizes connected peer
+        if (OperatingSystem.IsWindows())
+        {
+            var testPipe = "bke-testapp-auth-" + Guid.NewGuid().ToString("N");
+            var options = new ProductStartupOptions
+            {
+                PipeName = testPipe,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                RequestTimeout = TimeSpan.FromSeconds(5),
+            };
+
+            var agentServer = Task.Run(async () =>
+            {
+                await using var pipe = new System.IO.Pipes.NamedPipeServerStream(
+                    testPipe,
+                    System.IO.Pipes.PipeDirection.InOut,
+                    1,
+                    System.IO.Pipes.PipeTransmissionMode.Byte,
+                    System.IO.Pipes.PipeOptions.Asynchronous);
+                await pipe.WaitForConnectionAsync();
+
+                var hdr = new byte[4];
+                await pipe.ReadExactlyAsync(hdr);
+                var l = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(hdr);
+                var b = new byte[l];
+                await pipe.ReadExactlyAsync(b);
+                using var d = System.Text.Json.JsonDocument.Parse(b);
+                var rid = d.RootElement.GetProperty("request_id").GetString()!;
+
+                var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    schema = ProductStartupOptions.ExpectedProtocol,
+                    request_id = rid,
+                    authorized = true,
+                    reason = "authorized",
+                });
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(hdr, payload.Length);
+                await pipe.WriteAsync(hdr);
+                await pipe.WriteAsync(payload);
+                await pipe.FlushAsync();
+            });
+
+            var s13 = BkeLicensing.StartAsync(options).GetAwaiter().GetResult();
+            agentServer.GetAwaiter().GetResult();
+            Require(s13.Authorized && s13.Reason == "authorized", "Scenario 13 failed");
+
+            // 14. SDK client StartAsync denies when Agent denies or detects replay
+            var denyPipe = "bke-testapp-deny-" + Guid.NewGuid().ToString("N");
+            var denyOptions = new ProductStartupOptions
+            {
+                PipeName = denyPipe,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                RequestTimeout = TimeSpan.FromSeconds(5),
+            };
+
+            var agentDenyServer = Task.Run(async () =>
+            {
+                await using var pipe = new System.IO.Pipes.NamedPipeServerStream(
+                    denyPipe,
+                    System.IO.Pipes.PipeDirection.InOut,
+                    1,
+                    System.IO.Pipes.PipeTransmissionMode.Byte,
+                    System.IO.Pipes.PipeOptions.Asynchronous);
+                await pipe.WaitForConnectionAsync();
+
+                var hdr = new byte[4];
+                await pipe.ReadExactlyAsync(hdr);
+                var l = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(hdr);
+                var b = new byte[l];
+                await pipe.ReadExactlyAsync(b);
+                using var d = System.Text.Json.JsonDocument.Parse(b);
+                var rid = d.RootElement.GetProperty("request_id").GetString()!;
+
+                var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    schema = ProductStartupOptions.ExpectedProtocol,
+                    request_id = rid,
+                    authorized = false,
+                    reason = "same_process_replay",
+                });
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(hdr, payload.Length);
+                await pipe.WriteAsync(hdr);
+                await pipe.WriteAsync(payload);
+                await pipe.FlushAsync();
+            });
+
+            var s14 = BkeLicensing.StartAsync(denyOptions).GetAwaiter().GetResult();
+            agentDenyServer.GetAwaiter().GetResult();
+            Require(!s14.Authorized && s14.Reason == "same_process_replay", "Scenario 14 failed");
+        }
     }
 
     private static ProductAuthorizationDecision SimulateDirectLaunchBypassAttempt(params string[] spoofedArgs)
