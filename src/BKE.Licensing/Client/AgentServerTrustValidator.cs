@@ -128,12 +128,34 @@ internal sealed class WindowsAgentServerTrustValidator : IAgentServerTrustValida
                 return AgentServerTrustResult.Untrusted("server_outside_trusted_program_files");
             }
 
-            // Verify executable filename
+            // Verify executable filename against genuine Agent components:
+            // 1. bke-licensing-agent-service.exe: production Windows Service binary
+            // 2. bke-licensing-agent-runtime.exe: runtime-bridge host hosting the named pipe service
+            // 3. bke-licensing-agent.exe: monolithic Agent executable
+            // 4. BKE.LicensingAgent.Host.exe: nonproduction/certification Agent Host bootstrap
             var exeName = Path.GetFileName(imagePath);
-            if (!string.Equals(exeName, "bke-licensing-agent-service.exe", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(exeName, "bke-licensing-agent.exe", StringComparison.OrdinalIgnoreCase))
+            var isPermittedExe = string.Equals(exeName, "bke-licensing-agent-runtime.exe", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(exeName, "bke-licensing-agent-service.exe", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(exeName, "bke-licensing-agent.exe", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(exeName, "BKE.LicensingAgent.Host.exe", StringComparison.OrdinalIgnoreCase);
+
+            if (!isPermittedExe)
             {
                 return AgentServerTrustResult.Untrusted("server_untrusted_executable_name");
+            }
+
+            // Anti-reparse point check on server binary to reject symlinks and junctions
+            try
+            {
+                var fileInfo = new FileInfo(imagePath);
+                if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    return AgentServerTrustResult.Untrusted("server_image_is_reparse_point");
+                }
+            }
+            catch
+            {
+                return AgentServerTrustResult.Untrusted("server_image_attributes_inaccessible");
             }
 
             // 8. Verify privileged service identity

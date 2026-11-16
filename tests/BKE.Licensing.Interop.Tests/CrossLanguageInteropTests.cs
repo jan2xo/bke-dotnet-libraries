@@ -450,6 +450,12 @@ try {
         Assert.Equal("LICENSE_KEY", startupElem.GetProperty("activation_mode").GetString());
         Assert.Equal(kid, startupElem.GetProperty("kid").GetString());
 
+        // Verify startup expires_at is in canonical .NET format
+        var topLevelExpiresAtStr = startupElem.GetProperty("expires_at").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", topLevelExpiresAtStr);
+        var parsedTopLevelExpires = DateTimeOffset.Parse(topLevelExpiresAtStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(topLevelExpiresAtStr, parsedTopLevelExpires.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+
         var signedEnv = startupElem.GetProperty("signed_policy_envelope").GetString()!;
         using var envDoc = JsonDocument.Parse(signedEnv);
         var envRoot = envDoc.RootElement;
@@ -477,6 +483,17 @@ try {
         Assert.Equal("1.0.3", policyRoot.GetProperty("version").GetString());
         Assert.Equal("00000000-0000-0000-0000-000000000123", policyRoot.GetProperty("installation_id").GetString());
         Assert.Equal("LICENSE_KEY", policyRoot.GetProperty("activation_mode").GetString());
+
+        // Verify policy payload timestamps adhere to canonical .NET roundtrip format expected by Agent RequiredTime()
+        var policyNotBeforeStr = policyRoot.GetProperty("not_before").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", policyNotBeforeStr);
+        var parsedNotBefore = DateTimeOffset.Parse(policyNotBeforeStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(policyNotBeforeStr, parsedNotBefore.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+
+        var policyExpiresAtStr = policyRoot.GetProperty("expires_at").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", policyExpiresAtStr);
+        var parsedPolicyExpires = DateTimeOffset.Parse(policyExpiresAtStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(policyExpiresAtStr, parsedPolicyExpires.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
 
         // Negative: Tampered signature rejected in .NET
         var corruptedSig = (byte[])sigBytes.Clone();

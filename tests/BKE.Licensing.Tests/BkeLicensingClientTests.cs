@@ -330,4 +330,222 @@ public class BkeLicensingClientTests
         Assert.False(result.Authorized);
         Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
     }
+
+    [Fact]
+    public async Task StartAsync_Rejects_DuplicateProperties()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var pipeName = "bke-test-duplicate-props-" + Guid.NewGuid().ToString("N");
+        var options = new ProductStartupOptions
+        {
+            PipeName = pipeName,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+        };
+
+        var serverTask = Task.Run(async () =>
+        {
+            await using var server = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            await server.WaitForConnectionAsync();
+
+            var lenBuf = new byte[4];
+            await server.ReadExactlyAsync(lenBuf);
+            var len = BinaryPrimitives.ReadInt32BigEndian(lenBuf);
+            var reqBytes = new byte[len];
+            await server.ReadExactlyAsync(reqBytes);
+
+            using var doc = JsonDocument.Parse(reqBytes);
+            var reqId = doc.RootElement.GetProperty("request_id").GetString()!;
+
+            // Handcrafted JSON with duplicate "authorized" property
+            var rawJson = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{reqId}\",\"authorized\":false,\"authorized\":true,\"reason\":\"authorized\"}}";
+            var resp = System.Text.Encoding.UTF8.GetBytes(rawJson);
+
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, resp.Length);
+            await server.WriteAsync(lenBuf);
+            await server.WriteAsync(resp);
+            await server.FlushAsync();
+        });
+
+        var result = await BkeLicensing.StartAsync(options);
+        await serverTask;
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public async Task StartAsync_Rejects_SemanticContradiction_AuthorizedTrue_With_DeniedReason()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var pipeName = "bke-test-contradiction-1-" + Guid.NewGuid().ToString("N");
+        var options = new ProductStartupOptions
+        {
+            PipeName = pipeName,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+        };
+
+        var serverTask = Task.Run(async () =>
+        {
+            await using var server = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            await server.WaitForConnectionAsync();
+
+            var lenBuf = new byte[4];
+            await server.ReadExactlyAsync(lenBuf);
+            var len = BinaryPrimitives.ReadInt32BigEndian(lenBuf);
+            var reqBytes = new byte[len];
+            await server.ReadExactlyAsync(reqBytes);
+
+            using var doc = JsonDocument.Parse(reqBytes);
+            var reqId = doc.RootElement.GetProperty("request_id").GetString()!;
+
+            // Contradiction: authorized=true with denial reason
+            var resp = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = ProductStartupOptions.ExpectedProtocol,
+                request_id = reqId,
+                authorized = true,
+                reason = "peer_denied",
+            });
+
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, resp.Length);
+            await server.WriteAsync(lenBuf);
+            await server.WriteAsync(resp);
+            await server.FlushAsync();
+        });
+
+        var result = await BkeLicensing.StartAsync(options);
+        await serverTask;
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public async Task StartAsync_Rejects_SemanticContradiction_AuthorizedFalse_With_AuthorizedReason()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var pipeName = "bke-test-contradiction-2-" + Guid.NewGuid().ToString("N");
+        var options = new ProductStartupOptions
+        {
+            PipeName = pipeName,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+        };
+
+        var serverTask = Task.Run(async () =>
+        {
+            await using var server = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            await server.WaitForConnectionAsync();
+
+            var lenBuf = new byte[4];
+            await server.ReadExactlyAsync(lenBuf);
+            var len = BinaryPrimitives.ReadInt32BigEndian(lenBuf);
+            var reqBytes = new byte[len];
+            await server.ReadExactlyAsync(reqBytes);
+
+            using var doc = JsonDocument.Parse(reqBytes);
+            var reqId = doc.RootElement.GetProperty("request_id").GetString()!;
+
+            // Contradiction: authorized=false with "authorized" reason
+            var resp = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = ProductStartupOptions.ExpectedProtocol,
+                request_id = reqId,
+                authorized = false,
+                reason = "authorized",
+            });
+
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, resp.Length);
+            await server.WriteAsync(lenBuf);
+            await server.WriteAsync(resp);
+            await server.FlushAsync();
+        });
+
+        var result = await BkeLicensing.StartAsync(options);
+        await serverTask;
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public async Task StartAsync_Rejects_MissingRequiredProperty()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var pipeName = "bke-test-missing-prop-" + Guid.NewGuid().ToString("N");
+        var options = new ProductStartupOptions
+        {
+            PipeName = pipeName,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+        };
+
+        var serverTask = Task.Run(async () =>
+        {
+            await using var server = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            await server.WaitForConnectionAsync();
+
+            var lenBuf = new byte[4];
+            await server.ReadExactlyAsync(lenBuf);
+            var len = BinaryPrimitives.ReadInt32BigEndian(lenBuf);
+            var reqBytes = new byte[len];
+            await server.ReadExactlyAsync(reqBytes);
+
+            using var doc = JsonDocument.Parse(reqBytes);
+            var reqId = doc.RootElement.GetProperty("request_id").GetString()!;
+
+            // Missing "reason" property (only 3 properties provided)
+            var resp = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = ProductStartupOptions.ExpectedProtocol,
+                request_id = reqId,
+                authorized = true,
+            });
+
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, resp.Length);
+            await server.WriteAsync(lenBuf);
+            await server.WriteAsync(resp);
+            await server.FlushAsync();
+        });
+
+        var result = await BkeLicensing.StartAsync(options);
+        await serverTask;
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
 }

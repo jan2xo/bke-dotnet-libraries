@@ -9,7 +9,7 @@ permissions:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
-  TS_CERTIFIED_SHA: "948b5e562c620cea2d570e4c8f38dfacb3f81f9a"
+  TS_CERTIFIED_SHA: "f6477e501e943eaa4ddf69943f6def216b586dac"
 
 jobs:
   certify:

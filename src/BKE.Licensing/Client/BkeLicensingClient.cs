@@ -118,54 +118,8 @@ public static class BkeLicensingClient
                 }
             }
 
-            // 5. Strict schema & response validation
-            using var doc = JsonDocument.Parse(responseBuffer, new JsonDocumentOptions
-            {
-                AllowTrailingCommas = false,
-                CommentHandling = JsonCommentHandling.Disallow,
-                MaxDepth = 4,
-            });
-
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
-            }
-
-            // Disallow unexpected or extraneous fields
-            var propertyNames = root.EnumerateObject().Select(p => p.Name).ToArray();
-            if (propertyNames.Length < 3 || propertyNames.Length > 4 ||
-                !propertyNames.Contains("schema") ||
-                !propertyNames.Contains("request_id") ||
-                !propertyNames.Contains("authorized"))
-            {
-                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
-            }
-
-            if (!root.TryGetProperty("schema", out var schemaProp) ||
-                schemaProp.GetString() != ProductStartupOptions.ExpectedProtocol)
-            {
-                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
-            }
-
-            if (!root.TryGetProperty("request_id", out var reqIdProp) ||
-                reqIdProp.GetString() != requestId)
-            {
-                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
-            }
-
-            if (!root.TryGetProperty("authorized", out var authProp) ||
-                authProp.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-            {
-                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
-            }
-
-            var authorized = authProp.GetBoolean();
-            var reason = root.TryGetProperty("reason", out var reasonProp) && reasonProp.ValueKind == JsonValueKind.String
-                ? reasonProp.GetString() ?? (authorized ? ProductStartupFailureReasons.Authorized : ProductStartupFailureReasons.PeerDenied)
-                : (authorized ? ProductStartupFailureReasons.Authorized : ProductStartupFailureReasons.PeerDenied);
-
-            return new ProductStartupResult(authorized, reason, requestId);
+            // 5. Strict schema, duplicate rejection, and semantic consistency validation
+            return ParseAndValidateResponse(responseBuffer, requestId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -179,5 +133,110 @@ public static class BkeLicensingClient
         {
             return new ProductStartupResult(false, ProductStartupFailureReasons.AgentUnavailable);
         }
+    }
+
+    private static ProductStartupResult ParseAndValidateResponse(byte[] responseBuffer, string expectedRequestId)
+    {
+        var seenProperties = new HashSet<string>(StringComparer.Ordinal);
+        var reader = new Utf8JsonReader(responseBuffer, new JsonReaderOptions
+        {
+            AllowTrailingCommas = false,
+            CommentHandling = JsonCommentHandling.Disallow,
+            MaxDepth = 4,
+        });
+
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+        {
+            return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+        }
+
+        string? schema = null;
+        string? requestId = null;
+        bool? authorized = null;
+        string? reason = null;
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject)
+            {
+                break;
+            }
+
+            if (reader.TokenType != JsonTokenType.PropertyName)
+            {
+                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+            }
+
+            var propName = reader.GetString();
+            if (string.IsNullOrEmpty(propName) || !seenProperties.Add(propName))
+            {
+                // Duplicate property name detected
+                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+            }
+
+            if (!reader.Read())
+            {
+                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+            }
+
+            switch (propName)
+            {
+                case "schema":
+                    if (reader.TokenType != JsonTokenType.String)
+                        return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+                    schema = reader.GetString();
+                    break;
+
+                case "request_id":
+                    if (reader.TokenType != JsonTokenType.String)
+                        return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+                    requestId = reader.GetString();
+                    break;
+
+                case "authorized":
+                    if (reader.TokenType is not (JsonTokenType.True or JsonTokenType.False))
+                        return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+                    authorized = reader.GetBoolean();
+                    break;
+
+                case "reason":
+                    if (reader.TokenType != JsonTokenType.String)
+                        return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+                    reason = reader.GetString();
+                    break;
+
+                default:
+                    // Unexpected property name
+                    return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+            }
+        }
+
+        // Require exactly the 4 canonical properties
+        if (seenProperties.Count != 4 ||
+            schema is null || requestId is null || authorized is null || reason is null)
+        {
+            return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+        }
+
+        if (schema != ProductStartupOptions.ExpectedProtocol ||
+            requestId != expectedRequestId ||
+            string.IsNullOrWhiteSpace(reason) ||
+            reason.Length > 128)
+        {
+            return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+        }
+
+        // Enforce semantic consistency: prevent contradictory authorization grants
+        if (authorized.Value && reason != ProductStartupFailureReasons.Authorized)
+        {
+            return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+        }
+
+        if (!authorized.Value && reason == ProductStartupFailureReasons.Authorized)
+        {
+            return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+        }
+
+        return new ProductStartupResult(authorized.Value, reason, requestId);
     }
 }
