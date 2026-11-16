@@ -275,26 +275,51 @@ console.log(JSON.stringify({
 
         const string inlineHarnessScript = """
 import { createTestHarness } from 'wrangler';
-import { createHmac, randomUUID } from 'node:crypto';
+import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
+
+const ATTESTATION_DOMAIN = "BKE-AGENT-STARTUP-INSTALL-ATTESTATION-V1\n";
+const DEFAULT_AGENT_PRIVATE_KEY_PEM =
+  "-----BEGIN PRIVATE KEY-----\n" +
+  "MC4CAQAwBQYDK2VwBCIEIDmiRmOgeUcW+4yKJLLfZmIJn10vYVvWsUZPCpKdSHH9\n" +
+  "-----END PRIVATE KEY-----\n";
 
 function createTestInstallAttestation(options = {}) {
   const installationId = options.installationId ?? '00000000-0000-0000-0000-000000000123';
   const productId = options.productId ?? 'render-dock';
-  const nonce = options.nonce ?? randomUUID();
-  const timestamp = options.timestamp ?? new Date().toISOString();
-  const secret = options.secret ?? 'disposable-fixture-agent-attestation-secret-2026';
-  const schema = 'bke.agent-install-attestation.v1';
+  const version = options.version ?? '1.0.3';
+  const imagePath = options.imagePath ?? 'C:\\Program Files\\BKE Digital Solutions\\Render Dock\\RENDER DOCK.exe';
+  const imageSha256 = options.imageSha256 ?? 'a'.repeat(64);
+  const allowedUserSid = options.allowedUserSid ?? 'S-1-5-21-111-222-333-1001';
+  const deviceId = options.deviceId ?? 'dev_cf_machine_0001';
+  const attestationId = options.attestationId ?? randomUUID();
+  const now = new Date();
+  const issuedAt = options.issuedAt ?? now.toISOString();
+  const expiresAt = options.expiresAt ?? new Date(now.getTime() + 60000).toISOString();
+  const kid = options.kid ?? 'startup-test-key-001';
+  const privateKeyPem = options.privateKeyPem ?? DEFAULT_AGENT_PRIVATE_KEY_PEM;
 
-  const message = `${schema}:${installationId}:${productId}:${nonce}:${timestamp}`;
-  const hmac = createHmac('sha256', secret).update(message).digest('hex');
+  const payload = JSON.stringify({
+    schema: 'bke.agent-startup-install-attestation.v1',
+    product_id: productId,
+    version,
+    installation_id: installationId,
+    image_path: imagePath,
+    image_sha256: imageSha256,
+    allowed_user_sid: allowedUserSid,
+    device_id: deviceId,
+    attestation_id: attestationId,
+    issued_at: issuedAt,
+    expires_at: expiresAt,
+  });
+
+  const message = Buffer.from(ATTESTATION_DOMAIN + payload, 'utf8');
+  const signature = sign(null, message, privateKeyPem).toString('base64');
 
   return JSON.stringify({
-    schema,
-    installation_id: installationId,
-    product_id: productId,
-    nonce,
-    timestamp,
-    signature: hmac,
+    schema: 'bke.agent-startup-install-attestation-envelope.v1',
+    kid,
+    payload,
+    signature,
   });
 }
 

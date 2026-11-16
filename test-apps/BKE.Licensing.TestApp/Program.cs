@@ -27,7 +27,7 @@ internal static class Program
         }
 
         RunAllScenarios();
-        Console.WriteLine("DOTNET_ISOLATED_TEST_APP: ALL_14_SCENARIOS_VERIFIED");
+        Console.WriteLine("DOTNET_ISOLATED_TEST_APP: ALL_15_SCENARIOS_VERIFIED");
         return 0;
     }
 
@@ -350,7 +350,59 @@ internal static class Program
             var s14 = BkeLicensing.StartAsync(denyOptions).GetAwaiter().GetResult();
             agentDenyServer.GetAwaiter().GetResult();
             Require(!s14.Authorized && s14.Reason == "same_process_replay", "Scenario 14 failed");
+
+            // 15. SDK client StartAsync rejects trailing content / multiple JSON roots with protocol_error over pipe
+            var trailingPipe = "bke-testapp-trailing-" + Guid.NewGuid().ToString("N");
+            var trailingOptions = new ProductStartupOptions
+            {
+                PipeName = trailingPipe,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                RequestTimeout = TimeSpan.FromSeconds(5),
+                TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+            };
+
+            var agentTrailingServer = Task.Run(async () =>
+            {
+                await using var pipe = new System.IO.Pipes.NamedPipeServerStream(
+                    trailingPipe,
+                    System.IO.Pipes.PipeDirection.InOut,
+                    1,
+                    System.IO.Pipes.PipeTransmissionMode.Byte,
+                    System.IO.Pipes.PipeOptions.Asynchronous);
+                await pipe.WaitForConnectionAsync();
+
+                var hdr = new byte[4];
+                await pipe.ReadExactlyAsync(hdr);
+                var l = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(hdr);
+                var b = new byte[l];
+                await pipe.ReadExactlyAsync(b);
+                using var d = System.Text.Json.JsonDocument.Parse(b);
+                var rid = d.RootElement.GetProperty("request_id").GetString()!;
+
+                var payload = System.Text.Encoding.UTF8.GetBytes(
+                    $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{rid}\",\"authorized\":true,\"reason\":\"authorized\"}} JUNK_TRAILING_GARBAGE");
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(hdr, payload.Length);
+                await pipe.WriteAsync(hdr);
+                await pipe.WriteAsync(payload);
+                await pipe.FlushAsync();
+            });
+
+            var s15 = BkeLicensing.StartAsync(trailingOptions).GetAwaiter().GetResult();
+            agentTrailingServer.GetAwaiter().GetResult();
+            Require(!s15.Authorized && s15.Reason == ProductStartupFailureReasons.ProtocolError, "Scenario 15 failed: trailing content must return protocol_error");
         }
+
+        // 15b. Cross-platform whole-message consumption check in SDK parser
+        var testReqId = Guid.NewGuid().ToString("D");
+        var validWithWhitespace = Encoding.UTF8.GetBytes(
+            $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{testReqId}\",\"authorized\":true,\"reason\":\"authorized\"}}   \r\n");
+        var resWhitespace = BkeLicensingClient.ParseAndValidateResponse(validWithWhitespace, testReqId);
+        Require(resWhitespace.Authorized && resWhitespace.Reason == "authorized", "Scenario 15b whitespace check failed");
+
+        var withJunk = Encoding.UTF8.GetBytes(
+            $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{testReqId}\",\"authorized\":true,\"reason\":\"authorized\"}} EXTRA");
+        var resJunk = BkeLicensingClient.ParseAndValidateResponse(withJunk, testReqId);
+        Require(!resJunk.Authorized && resJunk.Reason == ProductStartupFailureReasons.ProtocolError, "Scenario 15b junk check failed");
     }
 
     private static ProductAuthorizationDecision SimulateDirectLaunchBypassAttempt(params string[] spoofedArgs)

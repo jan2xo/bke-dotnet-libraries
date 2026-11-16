@@ -556,4 +556,132 @@ public class BkeLicensingClientTests
         Assert.False(result.Authorized);
         Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
     }
+
+    [Fact]
+    public void ParseAndValidateResponse_AcceptsValidResponse_WithPermittedTrailingWhitespace()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var json = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{requestId}\",\"authorized\":true,\"reason\":\"authorized\"}}  \r\n\t ";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.True(result.Authorized);
+        Assert.Equal("authorized", result.Reason);
+        Assert.Equal(requestId, result.RequestId);
+    }
+
+    [Fact]
+    public void ParseAndValidateResponse_Rejects_TrailingSecondJsonRoot()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var json = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{requestId}\",\"authorized\":true,\"reason\":\"authorized\"}}{{\"extra\":\"root\"}}";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public void ParseAndValidateResponse_Rejects_TrailingGarbage()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var json = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{requestId}\",\"authorized\":true,\"reason\":\"authorized\"}} GARBAGE_DATA";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public void ParseAndValidateResponse_Rejects_TrailingTokens()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var json = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{requestId}\",\"authorized\":true,\"reason\":\"authorized\"}} [1, 2, 3]";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public void ParseAndValidateResponse_Rejects_TrailingNullBytes()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var json = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{requestId}\",\"authorized\":true,\"reason\":\"authorized\"}} \0";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public void ParseAndValidateResponse_Rejects_MalformedJson()
+    {
+        var requestId = Guid.NewGuid().ToString("D");
+        var bytes = System.Text.Encoding.UTF8.GetBytes("{ not valid json at all }");
+
+        var result = BkeLicensingClient.ParseAndValidateResponse(bytes, requestId);
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
+
+    [Fact]
+    public async Task StartAsync_Rejects_TrailingGarbage_OverPipe()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var pipeName = "bke-test-trailing-pipe-" + Guid.NewGuid().ToString("N");
+        var options = new ProductStartupOptions
+        {
+            PipeName = pipeName,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            RequestTimeout = TimeSpan.FromSeconds(5),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
+        };
+
+        var serverTask = Task.Run(async () =>
+        {
+            await using var server = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+
+            await server.WaitForConnectionAsync();
+
+            var lenBuf = new byte[4];
+            await server.ReadExactlyAsync(lenBuf);
+            var len = BinaryPrimitives.ReadInt32BigEndian(lenBuf);
+            var reqBytes = new byte[len];
+            await server.ReadExactlyAsync(reqBytes);
+
+            using var doc = JsonDocument.Parse(reqBytes);
+            var reqId = doc.RootElement.GetProperty("request_id").GetString()!;
+
+            var jsonWithTrailing = $"{{\"schema\":\"{ProductStartupOptions.ExpectedProtocol}\",\"request_id\":\"{reqId}\",\"authorized\":true,\"reason\":\"authorized\"}} EXTRA_TRAILING_DATA";
+            var resp = System.Text.Encoding.UTF8.GetBytes(jsonWithTrailing);
+
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, resp.Length);
+            await server.WriteAsync(lenBuf);
+            await server.WriteAsync(resp);
+            await server.FlushAsync();
+        });
+
+        var result = await BkeLicensing.StartAsync(options);
+        await serverTask;
+
+        Assert.False(result.Authorized);
+        Assert.Equal(ProductStartupFailureReasons.ProtocolError, result.Reason);
+    }
 }

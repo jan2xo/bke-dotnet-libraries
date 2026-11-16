@@ -44,6 +44,8 @@ internal sealed class WindowsAgentServerTrustValidator : IAgentServerTrustValida
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
     private const uint TOKEN_QUERY = 0x0008;
     private const int TokenUser = 1;
+    private const int TokenGroups = 2;
+    private const uint SE_GROUP_ENABLED = 0x00000004;
 
     private const string LocalSystemSid = "S-1-5-18";
     private const string BuiltinAdministratorsSid = "S-1-5-32-544";
@@ -105,11 +107,27 @@ internal sealed class WindowsAgentServerTrustValidator : IAgentServerTrustValida
 
             var imagePath = Path.GetFullPath(sb.ToString());
 
-            // 6. Query process token user SID
-            var userSid = GetProcessUserSid(hProcess);
-            if (string.IsNullOrWhiteSpace(userSid))
+            // 6. Query process token user SID and group membership
+            if (!OpenProcessToken(hProcess, TOKEN_QUERY, out IntPtr hToken))
             {
-                return AgentServerTrustResult.Untrusted("server_user_sid_unavailable");
+                return AgentServerTrustResult.Untrusted("server_token_open_denied");
+            }
+
+            string? userSid;
+            bool isMemberOfAdministrators;
+            try
+            {
+                userSid = GetTokenUserSid(hToken);
+                if (string.IsNullOrWhiteSpace(userSid))
+                {
+                    return AgentServerTrustResult.Untrusted("server_user_sid_unavailable");
+                }
+
+                isMemberOfAdministrators = IsTokenInGroup(hToken, BuiltinAdministratorsSid);
+            }
+            finally
+            {
+                CloseHandle(hToken);
             }
 
             // 7. Verify executable provenance: must reside within Program Files Agent directory
@@ -158,9 +176,14 @@ internal sealed class WindowsAgentServerTrustValidator : IAgentServerTrustValida
                 return AgentServerTrustResult.Untrusted("server_image_attributes_inaccessible");
             }
 
-            // 8. Verify privileged service identity
-            if (!string.Equals(userSid, LocalSystemSid, StringComparison.Ordinal) &&
-                !string.Equals(userSid, BuiltinAdministratorsSid, StringComparison.Ordinal))
+            // 8. Verify privileged service identity:
+            // Must be genuine LocalSystem service account (S-1-5-18), OR the process token must have
+            // active membership in the Builtin Administrators group (S-1-5-32-544).
+            // (Note: S-1-5-32-544 is an Administrators group SID in TokenGroups, never mistaken for a user SID).
+            bool isPrivilegedService = string.Equals(userSid, LocalSystemSid, StringComparison.Ordinal) ||
+                isMemberOfAdministrators;
+
+            if (!isPrivilegedService)
             {
                 return AgentServerTrustResult.Untrusted("server_untrusted_identity_sid");
             }
@@ -216,49 +239,88 @@ internal sealed class WindowsAgentServerTrustValidator : IAgentServerTrustValida
         return normCandidate.StartsWith(normParent, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? GetProcessUserSid(IntPtr hProcess)
+    private static string? GetTokenUserSid(IntPtr hToken)
     {
-        if (!OpenProcessToken(hProcess, TOKEN_QUERY, out IntPtr hToken))
-        {
-            return null;
-        }
+        GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out uint reqLen);
+        if (reqLen == 0) return null;
 
+        var buf = Marshal.AllocHGlobal((int)reqLen);
         try
         {
-            GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out uint reqLen);
-            if (reqLen == 0) return null;
+            if (!GetTokenInformation(hToken, TokenUser, buf, reqLen, out _))
+            {
+                return null;
+            }
 
-            var buf = Marshal.AllocHGlobal((int)reqLen);
+            IntPtr pSid = Marshal.ReadIntPtr(buf);
+            if (!ConvertSidToStringSid(pSid, out IntPtr pStringSid))
+            {
+                return null;
+            }
+
             try
             {
-                if (!GetTokenInformation(hToken, TokenUser, buf, reqLen, out _))
-                {
-                    return null;
-                }
-
-                IntPtr pSid = Marshal.ReadIntPtr(buf);
-                if (!ConvertSidToStringSid(pSid, out IntPtr pStringSid))
-                {
-                    return null;
-                }
-
-                try
-                {
-                    return Marshal.PtrToStringAuto(pStringSid);
-                }
-                finally
-                {
-                    LocalFree(pStringSid);
-                }
+                return Marshal.PtrToStringAuto(pStringSid);
             }
             finally
             {
-                Marshal.FreeHGlobal(buf);
+                LocalFree(pStringSid);
             }
         }
         finally
         {
-            CloseHandle(hToken);
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    private static bool IsTokenInGroup(IntPtr hToken, string targetSid)
+    {
+        GetTokenInformation(hToken, TokenGroups, IntPtr.Zero, 0, out uint reqLen);
+        if (reqLen == 0) return false;
+
+        var buf = Marshal.AllocHGlobal((int)reqLen);
+        try
+        {
+            if (!GetTokenInformation(hToken, TokenGroups, buf, reqLen, out _))
+            {
+                return false;
+            }
+
+            int groupCount = Marshal.ReadInt32(buf);
+            int stride = IntPtr.Size * 2;
+            IntPtr pGroupArray = IntPtr.Add(buf, IntPtr.Size);
+
+            for (int i = 0; i < groupCount; i++)
+            {
+                IntPtr pEntry = IntPtr.Add(pGroupArray, i * stride);
+                IntPtr pSid = Marshal.ReadIntPtr(pEntry);
+                uint attributes = unchecked((uint)Marshal.ReadInt32(pEntry, IntPtr.Size));
+
+                if ((attributes & SE_GROUP_ENABLED) != 0)
+                {
+                    if (ConvertSidToStringSid(pSid, out IntPtr pStringSid))
+                    {
+                        try
+                        {
+                            string? groupSid = Marshal.PtrToStringAuto(pStringSid);
+                            if (string.Equals(groupSid, targetSid, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                        finally
+                        {
+                            LocalFree(pStringSid);
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
         }
     }
 
