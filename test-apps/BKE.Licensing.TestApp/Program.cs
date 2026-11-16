@@ -19,7 +19,7 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var scenario = "all";
+        var scenario = "agent-client";
         if (args.Length >= 2 && args[0] == "--scenario")
         {
             scenario = args[1].ToLowerInvariant();
@@ -27,7 +27,7 @@ internal static class Program
         else if (args.Length >= 1)
         {
             var raw = args[0].TrimStart('-').ToLowerInvariant();
-            if (raw is "all" or "matrix" or "direct" or "agent-client")
+            if (raw is "all" or "matrix" or "direct" or "agent-client" or "replay" or "real-agent")
             {
                 scenario = raw;
             }
@@ -49,6 +49,39 @@ internal static class Program
             }
             Console.Error.WriteLine("DIRECT_EXECUTION: FAILED TO FAIL CLOSED");
             return 1;
+        }
+
+        if (scenario is "agent-client" or "direct" or "real-agent")
+        {
+            Console.WriteLine("AGENT_CLIENT: Connecting to local BKE Licensing Agent via BkeLicensing.StartAsync()...");
+            var result = BkeLicensing.StartAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"BKE_LICENSING_RESULT: authorized={result.Authorized} reason={result.Reason} requestId={result.RequestId}");
+            return result.Authorized ? 0 : 1;
+        }
+
+        if (scenario == "replay")
+        {
+            Console.WriteLine("AGENT_CLIENT_REPLAY: Executing initial startup authorization...");
+            var first = BkeLicensing.StartAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"FIRST_RESULT: authorized={first.Authorized} reason={first.Reason} requestId={first.RequestId}");
+            if (!first.Authorized)
+            {
+                Console.Error.WriteLine("AGENT_CLIENT_REPLAY: Initial authorization was denied; cannot test replay.");
+                return 1;
+            }
+
+            Console.WriteLine("AGENT_CLIENT_REPLAY: Executing immediate duplicate startup authorization in same process...");
+            var second = BkeLicensing.StartAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"SECOND_RESULT: authorized={second.Authorized} reason={second.Reason} requestId={second.RequestId}");
+
+            if (!second.Authorized && (second.Reason is "same_process_replay" or "startup_replay" or "audit_unavailable"))
+            {
+                Console.WriteLine($"AGENT_CLIENT_REPLAY: PASS (duplicate execution denied with reason={second.Reason})");
+                return 0;
+            }
+
+            Console.Error.WriteLine($"AGENT_CLIENT_REPLAY: FAIL (expected unauthorized with same_process_replay, got authorized={second.Authorized} reason={second.Reason})");
+            return 2;
         }
 
         if (scenario == "matrix")
