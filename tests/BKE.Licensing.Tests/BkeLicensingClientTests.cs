@@ -11,6 +11,14 @@ public class BkeLicensingClientTests
     [Fact]
     public async Task StartAsync_FailsClosed_WhenAgentUnavailable()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            var res = await BkeLicensing.StartAsync(new ProductStartupOptions());
+            Assert.False(res.Authorized);
+            Assert.Equal(ProductStartupFailureReasons.PlatformNotSupported, res.Reason);
+            return;
+        }
+
         var nonexistentPipe = "bke-test-nonexistent-pipe-" + Guid.NewGuid().ToString("N");
         var options = new ProductStartupOptions
         {

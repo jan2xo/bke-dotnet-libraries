@@ -244,7 +244,10 @@ internal static class Program
             RequestTimeout = TimeSpan.FromMilliseconds(50),
             TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
         }).GetAwaiter().GetResult();
-        Require(!s12.Authorized && s12.Reason == ProductStartupFailureReasons.AgentUnavailable, "Scenario 12 failed");
+        var expectedOfflineReason = OperatingSystem.IsWindows()
+            ? ProductStartupFailureReasons.AgentUnavailable
+            : ProductStartupFailureReasons.PlatformNotSupported;
+        Require(!s12.Authorized && s12.Reason == expectedOfflineReason, "Scenario 12 failed");
 
         // 13. SDK client StartAsync authorizes when Agent authorizes connected peer
         if (OperatingSystem.IsWindows())
