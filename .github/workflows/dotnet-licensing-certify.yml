@@ -9,7 +9,7 @@ permissions:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
-  TS_CERTIFIED_SHA: "66c01e5110ebf86c573c5ce13611a8379d28b326"
+  TS_CERTIFIED_SHA: "948b5e562c620cea2d570e4c8f38dfacb3f81f9a"
 
 jobs:
   certify:
@@ -41,11 +41,17 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install TypeScript interop runtime
+      - name: Pack and install TypeScript interop runtime
         working-directory: ts-licensing
+        shell: bash
         run: |
-          npm ci
-          npm install --prefix fixtures/cloudflare-licensing-worker
+          npm ci --ignore-scripts
+          mkdir -p artifacts
+          npm pack --workspace=@bke/licensing --pack-destination=artifacts
+          tarball="artifacts/bke-licensing-0.11.0.tgz"
+          test -f "$tarball"
+          sha256sum "$tarball"
+          npm ci --prefix fixtures/cloudflare-licensing-worker
 
       - name: Restore and build .NET solution
         working-directory: dotnet-libs

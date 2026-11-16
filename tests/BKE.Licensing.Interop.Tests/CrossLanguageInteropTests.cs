@@ -275,6 +275,28 @@ console.log(JSON.stringify({
 
         const string inlineHarnessScript = """
 import { createTestHarness } from 'wrangler';
+import { createHmac, randomUUID } from 'node:crypto';
+
+function createTestInstallAttestation(options = {}) {
+  const installationId = options.installationId ?? '00000000-0000-0000-0000-000000000123';
+  const productId = options.productId ?? 'render-dock';
+  const nonce = options.nonce ?? randomUUID();
+  const timestamp = options.timestamp ?? new Date().toISOString();
+  const secret = options.secret ?? 'disposable-fixture-agent-attestation-secret-2026';
+  const schema = 'bke.agent-install-attestation.v1';
+
+  const message = `${schema}:${installationId}:${productId}:${nonce}:${timestamp}`;
+  const hmac = createHmac('sha256', secret).update(message).digest('hex');
+
+  return JSON.stringify({
+    schema,
+    installation_id: installationId,
+    product_id: productId,
+    nonce,
+    timestamp,
+    signature: hmac,
+  });
+}
 
 const configPath = './wrangler.jsonc';
 const harness = createTestHarness({
@@ -315,17 +337,16 @@ try {
   });
   const comm = await commRes.json();
 
+  const attestation = createTestInstallAttestation();
   const startupRes = await harness.fetch('http://localhost/api/agent-sessions/startup-policy', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      'x-bke-test-fixture': 'disposable-nonproduction',
       'x-bke-startup-policy-protocol': 'bke.installed-startup-issuance.v1',
     },
     body: JSON.stringify({
-      signed_install_attestation: 'test_install_attestation_bytes_sample',
-      productId: 'render-dock',
-      version: '1.0.3',
-      activationMode: 'EITHER',
+      signed_install_attestation: attestation,
     }),
   });
   const startup = await startupRes.json();
@@ -423,14 +444,54 @@ try {
         Assert.False(tamperedComm.Ok);
         Assert.Equal(CommercialLeaseFailureReasons.InvalidSignature, tamperedComm.Reason);
 
-        // 5. Verify the startup policy response protocol from Worker
+        // 5. Cryptographically verify the real Standalone Startup Policy Envelope in .NET
         var startupElem = root.GetProperty("startup");
         Assert.Equal("issued", startupElem.GetProperty("status").GetString());
-        Assert.Equal("EITHER", startupElem.GetProperty("activation_mode").GetString());
+        Assert.Equal("LICENSE_KEY", startupElem.GetProperty("activation_mode").GetString());
+        Assert.Equal(kid, startupElem.GetProperty("kid").GetString());
+
         var signedEnv = startupElem.GetProperty("signed_policy_envelope").GetString()!;
         using var envDoc = JsonDocument.Parse(signedEnv);
-        Assert.Equal("bke.standalone-startup-envelope.v1", envDoc.RootElement.GetProperty("schema").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(envDoc.RootElement.GetProperty("signature").GetString()));
+        var envRoot = envDoc.RootElement;
+        Assert.Equal("bke.standalone-startup-envelope.v1", envRoot.GetProperty("schema").GetString());
+        Assert.Equal(kid, envRoot.GetProperty("kid").GetString());
+        var rawPolicyPayload = envRoot.GetProperty("payload").GetString()!;
+        var rawSignatureBase64 = envRoot.GetProperty("signature").GetString()!;
+
+        // Cryptographically verify Ed25519 signature over (Domain + payload) using BouncyCastle
+        var sigBytes = Convert.FromBase64String(rawSignatureBase64);
+        var signedData = System.Text.Encoding.UTF8.GetBytes("BKE-STANDALONE-STARTUP-POLICY-V1\n" + rawPolicyPayload);
+
+        Assert.True(Ed25519KeyUtilities.TryParsePublicKey(pubPem, out var pubKeyParams), "Failed to parse issuer public key PEM");
+        var policyVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        policyVerifier.Init(false, pubKeyParams);
+        policyVerifier.BlockUpdate(signedData, 0, signedData.Length);
+        Assert.True(policyVerifier.VerifySignature(sigBytes), "Ed25519 signature of startup policy failed in .NET");
+
+        // Verify policy payload fields match enrolled fixture identity
+        using var policyDoc = JsonDocument.Parse(rawPolicyPayload);
+        var policyRoot = policyDoc.RootElement;
+        Assert.Equal("bke.standalone-startup-policy.v1", policyRoot.GetProperty("schema").GetString());
+        Assert.Equal("09c16bc5c7e1d6ab3cb8df0ba569e6da05498f3f", policyRoot.GetProperty("issuer_source_sha").GetString());
+        Assert.Equal("render-dock", policyRoot.GetProperty("product_id").GetString());
+        Assert.Equal("1.0.3", policyRoot.GetProperty("version").GetString());
+        Assert.Equal("00000000-0000-0000-0000-000000000123", policyRoot.GetProperty("installation_id").GetString());
+        Assert.Equal("LICENSE_KEY", policyRoot.GetProperty("activation_mode").GetString());
+
+        // Negative: Tampered signature rejected in .NET
+        var corruptedSig = (byte[])sigBytes.Clone();
+        corruptedSig[0] ^= 0xFF;
+        var tamperVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        tamperVerifier.Init(false, pubKeyParams);
+        tamperVerifier.BlockUpdate(signedData, 0, signedData.Length);
+        Assert.False(tamperVerifier.VerifySignature(corruptedSig));
+
+        // Negative: Tampered policy payload rejected in .NET
+        var tamperedPolicyData = System.Text.Encoding.UTF8.GetBytes("BKE-STANDALONE-STARTUP-POLICY-V1\n" + rawPolicyPayload.Replace("render-dock", "tampered-dock"));
+        var tamperPayloadVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        tamperPayloadVerifier.Init(false, pubKeyParams);
+        tamperPayloadVerifier.BlockUpdate(tamperedPolicyData, 0, tamperedPolicyData.Length);
+        Assert.False(tamperPayloadVerifier.VerifySignature(sigBytes));
     }
 
     private static void AssertSuite(JsonElement root)

@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Security.Principal;
-using System.Text;
 using System.Text.Json;
 
 namespace BKE.Licensing.Client;
@@ -19,6 +18,23 @@ public static class BkeLicensingClient
         if (!OperatingSystem.IsWindows())
         {
             return new ProductStartupResult(false, ProductStartupFailureReasons.PlatformNotSupported);
+        }
+
+        // Production security boundary:
+        // Untrusted callers cannot select a custom pipe name without an internal test validator.
+        IAgentServerTrustValidator trustValidator;
+        if (options.TestTrustValidator is not null)
+        {
+            trustValidator = options.TestTrustValidator;
+        }
+        else
+        {
+            if (!string.Equals(options.PipeName, ProductStartupOptions.DefaultPipeName, StringComparison.Ordinal))
+            {
+                return new ProductStartupResult(false, ProductStartupFailureReasons.AgentServerUntrusted);
+            }
+
+            trustValidator = WindowsAgentServerTrustValidator.Instance;
         }
 
         var requestId = Guid.NewGuid().ToString("N");
@@ -54,6 +70,14 @@ public static class BkeLicensingClient
                 return new ProductStartupResult(false, ProductStartupFailureReasons.AgentUnavailable);
             }
 
+            // 1. Authenticate the connected pipe server process identity before sending or trusting authorization
+            var initialTrust = trustValidator.ValidateConnectedServer(pipe.SafePipeHandle, options.PipeName);
+            if (!initialTrust.IsTrusted)
+            {
+                return new ProductStartupResult(false, ProductStartupFailureReasons.AgentServerUntrusted);
+            }
+
+            // 2. Transmit correlated authorization request
             var requestPayload = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 schema = ProductStartupOptions.ExpectedProtocol,
@@ -73,6 +97,7 @@ public static class BkeLicensingClient
             await pipe.WriteAsync(requestPayload, timeoutCts.Token).ConfigureAwait(false);
             await pipe.FlushAsync(timeoutCts.Token).ConfigureAwait(false);
 
+            // 3. Receive correlated response
             await pipe.ReadExactlyAsync(lengthHeader, timeoutCts.Token).ConfigureAwait(false);
             var responseLength = BinaryPrimitives.ReadInt32BigEndian(lengthHeader);
             if (responseLength is < 2 or > MaxMessageBytes)
@@ -83,6 +108,17 @@ public static class BkeLicensingClient
             var responseBuffer = new byte[responseLength];
             await pipe.ReadExactlyAsync(responseBuffer, timeoutCts.Token).ConfigureAwait(false);
 
+            // 4. TOCTOU Protection: Re-verify that server PID, process instance, and identity did not change mid-flight
+            if (initialTrust.Evidence is not null)
+            {
+                var liveTrust = trustValidator.ValidateLiveServer(pipe.SafePipeHandle, initialEvidence: initialTrust.Evidence);
+                if (!liveTrust.IsTrusted)
+                {
+                    return new ProductStartupResult(false, ProductStartupFailureReasons.AgentServerUntrusted);
+                }
+            }
+
+            // 5. Strict schema & response validation
             using var doc = JsonDocument.Parse(responseBuffer, new JsonDocumentOptions
             {
                 AllowTrailingCommas = false,
@@ -92,6 +128,16 @@ public static class BkeLicensingClient
 
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
+            {
+                return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
+            }
+
+            // Disallow unexpected or extraneous fields
+            var propertyNames = root.EnumerateObject().Select(p => p.Name).ToArray();
+            if (propertyNames.Length < 3 || propertyNames.Length > 4 ||
+                !propertyNames.Contains("schema") ||
+                !propertyNames.Contains("request_id") ||
+                !propertyNames.Contains("authorized"))
             {
                 return new ProductStartupResult(false, ProductStartupFailureReasons.ProtocolError);
             }

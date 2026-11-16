@@ -242,18 +242,30 @@ internal static class Program
             PipeName = "bke-testapp-offline-" + Guid.NewGuid().ToString("N"),
             ConnectTimeout = TimeSpan.FromMilliseconds(50),
             RequestTimeout = TimeSpan.FromMilliseconds(50),
+            TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
         }).GetAwaiter().GetResult();
         Require(!s12.Authorized && s12.Reason == ProductStartupFailureReasons.AgentUnavailable, "Scenario 12 failed");
 
         // 13. SDK client StartAsync authorizes when Agent authorizes connected peer
         if (OperatingSystem.IsWindows())
         {
+            // 13a. SDK client StartAsync fails closed when untrusted pipe or server is encountered
+            var s13Untrusted = BkeLicensing.StartAsync(new ProductStartupOptions
+            {
+                PipeName = "bke-attacker-pipe-" + Guid.NewGuid().ToString("N"),
+                ConnectTimeout = TimeSpan.FromMilliseconds(50),
+                RequestTimeout = TimeSpan.FromMilliseconds(50),
+            }).GetAwaiter().GetResult();
+            Require(!s13Untrusted.Authorized && s13Untrusted.Reason == ProductStartupFailureReasons.AgentServerUntrusted, "Scenario 13a failed: untrusted pipe must fail closed");
+
+            // 13b. SDK client StartAsync authorizes when attested Agent server authorizes connected peer
             var testPipe = "bke-testapp-auth-" + Guid.NewGuid().ToString("N");
             var options = new ProductStartupOptions
             {
                 PipeName = testPipe,
                 ConnectTimeout = TimeSpan.FromSeconds(5),
                 RequestTimeout = TimeSpan.FromSeconds(5),
+                TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
             };
 
             var agentServer = Task.Run(async () =>
@@ -289,7 +301,7 @@ internal static class Program
 
             var s13 = BkeLicensing.StartAsync(options).GetAwaiter().GetResult();
             agentServer.GetAwaiter().GetResult();
-            Require(s13.Authorized && s13.Reason == "authorized", "Scenario 13 failed");
+            Require(s13.Authorized && s13.Reason == "authorized", "Scenario 13b failed");
 
             // 14. SDK client StartAsync denies when Agent denies or detects replay
             var denyPipe = "bke-testapp-deny-" + Guid.NewGuid().ToString("N");
@@ -298,6 +310,7 @@ internal static class Program
                 PipeName = denyPipe,
                 ConnectTimeout = TimeSpan.FromSeconds(5),
                 RequestTimeout = TimeSpan.FromSeconds(5),
+                TestTrustValidator = TestAgentServerTrustValidator.AllowAnyAttestedLiveProcess(),
             };
 
             var agentDenyServer = Task.Run(async () =>

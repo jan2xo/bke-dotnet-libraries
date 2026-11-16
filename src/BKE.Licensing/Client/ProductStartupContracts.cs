@@ -9,6 +9,7 @@ public static class ProductStartupFailureReasons
     public const string RequestTimedOut = "request_timed_out";
     public const string PeerDenied = "peer_denied";
     public const string ReplayDenied = "replay_denied";
+    public const string AgentServerUntrusted = "agent_server_untrusted";
 }
 
 public sealed record ProductStartupResult(
@@ -24,4 +25,10 @@ public sealed record ProductStartupOptions
     public string PipeName { get; init; } = DefaultPipeName;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Internal test hook for test fixtures only.
+    /// Regular consumer software cannot inject custom trust validators.
+    /// </summary>
+    internal IAgentServerTrustValidator? TestTrustValidator { get; init; }
 }
