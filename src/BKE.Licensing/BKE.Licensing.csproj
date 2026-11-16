@@ -7,4 +7,9 @@
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BKE.Licensing.Tests" />
+    <InternalsVisibleTo Include="BKE.Licensing.Interop.Tests" />
+    <InternalsVisibleTo Include="BKE.Licensing.TestApp" />
+  </ItemGroup>
 </Project>

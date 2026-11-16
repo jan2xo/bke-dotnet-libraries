@@ -260,6 +260,282 @@ console.log(JSON.stringify({
         Assert.Equal(LeaseChallengeFailureReasons.ChallengeAlreadyConsumed, popReplay.Reason);
     }
 
+    [Fact]
+    public void CloudflareWorkerFixture_EmitsRealSignedBytes_VerifiedInDotNet()
+    {
+        var tsRepoPath = ResolveTypeScriptRepoPath();
+        if (tsRepoPath is null)
+        {
+            Assert.True(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")), "CI must supply BKE_TS_REPO_PATH");
+            return;
+        }
+
+        var workerFixtureDir = Path.Combine(tsRepoPath, "fixtures", "cloudflare-licensing-worker");
+        Assert.True(Directory.Exists(workerFixtureDir), $"Missing Cloudflare worker fixture at {workerFixtureDir}");
+
+        const string inlineHarnessScript = """
+import { createTestHarness } from 'wrangler';
+import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
+
+const ATTESTATION_DOMAIN = "BKE-AGENT-STARTUP-INSTALL-ATTESTATION-V1\n";
+const DEFAULT_AGENT_PRIVATE_KEY_PEM =
+  "-----BEGIN PRIVATE KEY-----\n" +
+  "MC4CAQAwBQYDK2VwBCIEIDmiRmOgeUcW+4yKJLLfZmIJn10vYVvWsUZPCpKdSHH9\n" +
+  "-----END PRIVATE KEY-----\n";
+
+function createTestInstallAttestation(options = {}) {
+  const installationId = options.installationId ?? '00000000-0000-0000-0000-000000000123';
+  const productId = options.productId ?? 'render-dock';
+  const version = options.version ?? '1.0.3';
+  const imagePath = options.imagePath ?? 'C:\\Program Files\\BKE Digital Solutions\\Render Dock\\RENDER DOCK.exe';
+  const imageSha256 = options.imageSha256 ?? 'a'.repeat(64);
+  const allowedUserSid = options.allowedUserSid ?? 'S-1-5-21-111-222-333-1001';
+  const deviceId = options.deviceId ?? 'dev_cf_machine_0001';
+  const attestationId = options.attestationId ?? randomUUID();
+  const now = new Date();
+  const issuedAt = options.issuedAt ?? now.toISOString();
+  const expiresAt = options.expiresAt ?? new Date(now.getTime() + 60000).toISOString();
+  const kid = options.kid ?? 'startup-test-key-001';
+  const privateKeyPem = options.privateKeyPem ?? DEFAULT_AGENT_PRIVATE_KEY_PEM;
+
+  const payload = JSON.stringify({
+    schema: 'bke.agent-startup-install-attestation.v1',
+    product_id: productId,
+    version,
+    installation_id: installationId,
+    image_path: imagePath,
+    image_sha256: imageSha256,
+    allowed_user_sid: allowedUserSid,
+    device_id: deviceId,
+    attestation_id: attestationId,
+    issued_at: issuedAt,
+    expires_at: expiresAt,
+  });
+
+  const message = Buffer.from(ATTESTATION_DOMAIN + payload, 'utf8');
+  const signature = sign(null, message, privateKeyPem).toString('base64');
+
+  return JSON.stringify({
+    schema: 'bke.agent-startup-install-attestation-envelope.v1',
+    kid,
+    payload,
+    signature,
+  });
+}
+
+const configPath = './wrangler.jsonc';
+const harness = createTestHarness({
+  workers: [{ configPath }],
+});
+
+await harness.listen();
+try {
+  const healthRes = await harness.fetch('http://localhost/health');
+  const health = await healthRes.json();
+
+  const keysRes = await harness.fetch('http://localhost/api/test/public-keys');
+  const keys = await keysRes.json();
+
+  const acctRes = await harness.fetch('http://localhost/api/test/issue-account-lease', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      productId: 'render-dock',
+      accountId: 'acct_cf_test_001',
+      userId: 'usr_cf_test_001',
+      allowedActions: ['OPEN', 'USE'],
+      ttlMinutes: 20,
+    }),
+  });
+  const acct = await acctRes.json();
+
+  const commRes = await harness.fetch('http://localhost/api/test/issue-commercial-lease', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      productId: 'render-dock',
+      installationId: '00000000-0000-0000-0000-000000000123',
+      deviceId: 'dev_cf_machine_0001',
+      version: '1.0.3',
+      ttlMinutes: 60,
+    }),
+  });
+  const comm = await commRes.json();
+
+  const attestation = createTestInstallAttestation();
+  const startupRes = await harness.fetch('http://localhost/api/agent-sessions/startup-policy', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-bke-test-fixture': 'disposable-nonproduction',
+      'x-bke-startup-policy-protocol': 'bke.installed-startup-issuance.v1',
+    },
+    body: JSON.stringify({
+      signed_install_attestation: attestation,
+    }),
+  });
+  const startup = await startupRes.json();
+
+  console.log(JSON.stringify({
+    health,
+    keys,
+    acct,
+    comm,
+    startup,
+  }));
+} finally {
+  await harness.close();
+}
+""";
+
+        var liveOutput = RunInlineNodeModule(workerFixtureDir, inlineHarnessScript);
+        using var doc = JsonDocument.Parse(liveOutput);
+        var root = doc.RootElement;
+
+        // 1. Verify health & runtime identity
+        var health = root.GetProperty("health");
+        Assert.Equal("ok", health.GetProperty("status").GetString());
+        Assert.Equal("cloudflare-worker-workerd", health.GetProperty("runtime").GetString());
+
+        // 2. Extract public key
+        var keysArray = root.GetProperty("keys").GetProperty("keys");
+        var activeKey = keysArray[0];
+        var kid = activeKey.GetProperty("kid").GetString()!;
+        var pubPem = activeKey.GetProperty("publicKeyPem").GetString()!;
+
+        // 3. Cryptographically verify the real Account Lease JWS in .NET
+        var acctElem = root.GetProperty("acct");
+        var jws = acctElem.GetProperty("jws").GetString()!;
+        var claimsElem = acctElem.GetProperty("claims");
+        var issuedAt = DateTimeOffset.Parse(claimsElem.GetProperty("issuedAt").GetString()!);
+
+        var acctKeys = new Dictionary<string, AccountProductLeaseTrustedKey>
+        {
+            [kid] = new(pubPem, AccountProductLeaseKeyStates.Active),
+        };
+        var acctExpected = new AccountProductLeaseVerificationContext(
+            claimsElem.GetProperty("issuer").GetString()!,
+            claimsElem.GetProperty("audience").GetString()!,
+            claimsElem.GetProperty("accountId").GetString()!,
+            claimsElem.GetProperty("userId").GetString()!,
+            claimsElem.GetProperty("productId").GetString()!,
+            claimsElem.GetProperty("agentSessionId").GetString()!,
+            claimsElem.GetProperty("agentKeyThumbprint").GetString()!,
+            "OPEN",
+            issuedAt.AddMinutes(1),
+            DisallowPublicTestKeys: true);
+
+        var acctVerification = AccountProductLeaseVerifier.Verify(jws, acctKeys, acctExpected);
+        Assert.True(acctVerification.Ok, $"Account lease JWS from Worker failed: {acctVerification.Reason}");
+        Assert.NotNull(acctVerification.Claims);
+        Assert.Equal("render-dock", acctVerification.Claims.ProductId);
+
+        // Negative: tampered JWS rejected by .NET
+        var jwsParts = jws.Split('.');
+        var tamperedJws = $"{jwsParts[0]}.{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"tampered\":true}"))}.{jwsParts[2]}";
+        var tamperedAcct = AccountProductLeaseVerifier.Verify(tamperedJws, acctKeys, acctExpected);
+        Assert.False(tamperedAcct.Ok);
+
+        // 4. Cryptographically verify the real Commercial Lease Envelope in .NET
+        var commElem = root.GetProperty("comm");
+        var envElem = commElem.GetProperty("envelope");
+        var commercialEnvelope = new CommercialLeaseEnvelope(
+            envElem.GetProperty("payload").GetString()!,
+            envElem.GetProperty("signature").GetString()!,
+            envElem.GetProperty("key_id").GetString()!,
+            envElem.GetProperty("algorithm").GetString()!);
+
+        var commKeys = new Dictionary<string, CommercialLeaseTrustedKey>
+        {
+            [kid] = new(pubPem, CommercialLeaseKeyStatuses.Active),
+        };
+        var commExpected = new CommercialLeaseVerificationContext(
+            "BKE Digital Solutions",
+            "render-dock",
+            "00000000-0000-0000-0000-000000000123",
+            "dev_cf_machine_0001",
+            "1.0.3",
+            issuedAt.AddMinutes(1),
+            DisallowPublicTestKeys: true);
+
+        var commVerification = CommercialLeaseVerifier.Verify(commercialEnvelope, commKeys, commExpected);
+        Assert.True(commVerification.Ok, $"Commercial lease from Worker failed: {commVerification.Reason}");
+        Assert.NotNull(commVerification.Payload);
+        Assert.Equal("render-dock", commVerification.Payload.ProductId);
+
+        // Negative: tampered commercial payload rejected by .NET
+        var tamperedPayload = commercialEnvelope.Payload.Replace("render-dock", "tampered-dock");
+        var tamperedComm = CommercialLeaseVerifier.Verify(commercialEnvelope with { Payload = tamperedPayload }, commKeys, commExpected);
+        Assert.False(tamperedComm.Ok);
+        Assert.Equal(CommercialLeaseFailureReasons.InvalidSignature, tamperedComm.Reason);
+
+        // 5. Cryptographically verify the real Standalone Startup Policy Envelope in .NET
+        var startupElem = root.GetProperty("startup");
+        Assert.Equal("issued", startupElem.GetProperty("status").GetString());
+        Assert.Equal("LICENSE_KEY", startupElem.GetProperty("activation_mode").GetString());
+        Assert.Equal(kid, startupElem.GetProperty("kid").GetString());
+
+        // Verify startup expires_at is in canonical .NET format
+        var topLevelExpiresAtStr = startupElem.GetProperty("expires_at").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", topLevelExpiresAtStr);
+        var parsedTopLevelExpires = DateTimeOffset.Parse(topLevelExpiresAtStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(topLevelExpiresAtStr, parsedTopLevelExpires.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+
+        var signedEnv = startupElem.GetProperty("signed_policy_envelope").GetString()!;
+        using var envDoc = JsonDocument.Parse(signedEnv);
+        var envRoot = envDoc.RootElement;
+        Assert.Equal("bke.standalone-startup-envelope.v1", envRoot.GetProperty("schema").GetString());
+        Assert.Equal(kid, envRoot.GetProperty("kid").GetString());
+        var rawPolicyPayload = envRoot.GetProperty("payload").GetString()!;
+        var rawSignatureBase64 = envRoot.GetProperty("signature").GetString()!;
+
+        // Cryptographically verify Ed25519 signature over (Domain + payload) using BouncyCastle
+        var sigBytes = Convert.FromBase64String(rawSignatureBase64);
+        var signedData = System.Text.Encoding.UTF8.GetBytes("BKE-STANDALONE-STARTUP-POLICY-V1\n" + rawPolicyPayload);
+
+        Assert.True(Ed25519KeyUtilities.TryParsePublicKey(pubPem, out var pubKeyParams), "Failed to parse issuer public key PEM");
+        var policyVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        policyVerifier.Init(false, pubKeyParams);
+        policyVerifier.BlockUpdate(signedData, 0, signedData.Length);
+        Assert.True(policyVerifier.VerifySignature(sigBytes), "Ed25519 signature of startup policy failed in .NET");
+
+        // Verify policy payload fields match enrolled fixture identity
+        using var policyDoc = JsonDocument.Parse(rawPolicyPayload);
+        var policyRoot = policyDoc.RootElement;
+        Assert.Equal("bke.standalone-startup-policy.v1", policyRoot.GetProperty("schema").GetString());
+        Assert.Equal("09c16bc5c7e1d6ab3cb8df0ba569e6da05498f3f", policyRoot.GetProperty("issuer_source_sha").GetString());
+        Assert.Equal("render-dock", policyRoot.GetProperty("product_id").GetString());
+        Assert.Equal("1.0.3", policyRoot.GetProperty("version").GetString());
+        Assert.Equal("00000000-0000-0000-0000-000000000123", policyRoot.GetProperty("installation_id").GetString());
+        Assert.Equal("LICENSE_KEY", policyRoot.GetProperty("activation_mode").GetString());
+
+        // Verify policy payload timestamps adhere to canonical .NET roundtrip format expected by Agent RequiredTime()
+        var policyNotBeforeStr = policyRoot.GetProperty("not_before").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", policyNotBeforeStr);
+        var parsedNotBefore = DateTimeOffset.Parse(policyNotBeforeStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(policyNotBeforeStr, parsedNotBefore.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+
+        var policyExpiresAtStr = policyRoot.GetProperty("expires_at").GetString()!;
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}\+00:00$", policyExpiresAtStr);
+        var parsedPolicyExpires = DateTimeOffset.Parse(policyExpiresAtStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.Equal(policyExpiresAtStr, parsedPolicyExpires.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+
+        // Negative: Tampered signature rejected in .NET
+        var corruptedSig = (byte[])sigBytes.Clone();
+        corruptedSig[0] ^= 0xFF;
+        var tamperVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        tamperVerifier.Init(false, pubKeyParams);
+        tamperVerifier.BlockUpdate(signedData, 0, signedData.Length);
+        Assert.False(tamperVerifier.VerifySignature(corruptedSig));
+
+        // Negative: Tampered policy payload rejected in .NET
+        var tamperedPolicyData = System.Text.Encoding.UTF8.GetBytes("BKE-STANDALONE-STARTUP-POLICY-V1\n" + rawPolicyPayload.Replace("render-dock", "tampered-dock"));
+        var tamperPayloadVerifier = new Org.BouncyCastle.Crypto.Signers.Ed25519Signer();
+        tamperPayloadVerifier.Init(false, pubKeyParams);
+        tamperPayloadVerifier.BlockUpdate(tamperedPolicyData, 0, tamperedPolicyData.Length);
+        Assert.False(tamperPayloadVerifier.VerifySignature(sigBytes));
+    }
+
     private static void AssertSuite(JsonElement root)
     {
         // 1. Account-product lease vectors (14 cases)
@@ -466,6 +742,39 @@ console.log(JSON.stringify({
             var stderr = p.StandardError.ReadToEnd();
             p.WaitForExit();
             Assert.True(p.ExitCode == 0, $"tsx failed ({p.ExitCode}): {stderr}");
+            return stdout;
+        }
+        finally
+        {
+            if (File.Exists(tmpFile))
+            {
+                File.Delete(tmpFile);
+            }
+        }
+    }
+
+    private static string RunInlineNodeModule(string workDir, string moduleSource)
+    {
+        var tmpFile = Path.Combine(workDir, $"bke-worker-test-{Guid.NewGuid():N}.mjs");
+        File.WriteAllText(tmpFile, moduleSource, System.Text.Encoding.UTF8);
+        try
+        {
+            var psi = new ProcessStartInfo("node")
+            {
+                WorkingDirectory = workDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add(tmpFile);
+            using var p = Process.Start(psi)!;
+            var stdout = p.StandardOutput.ReadToEnd();
+            var stderr = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            Assert.True(p.ExitCode == 0, $"node failed ({p.ExitCode}): {stderr}");
             return stdout;
         }
         finally
